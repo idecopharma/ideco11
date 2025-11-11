@@ -1,5 +1,4 @@
 
-
 import React, { useState, useCallback, useEffect } from 'react';
 import { GoogleGenAI, Modality } from '@google/genai';
 import type { UploadedFile, PromptTemplate, CanvasElement } from './types';
@@ -13,11 +12,11 @@ import useLocalStorage from './hooks/useLocalStorage';
 import AspectRatioSelector from './components/AspectRatioSelector';
 import TextEditorModal from './components/TextEditorModal';
 import ImageEditorModal from './components/ImageEditorModal';
-import AddTextModal from './components/AddTextModal';
 import ShareModal from './components/ShareModal';
 import VideoGenerationModal from './components/VideoGenerationModal';
 import VideoPromptModal from './components/VideoPromptModal';
 import IframeModal from './components/IframeModal';
+import CanvasEditorModal from './components/CanvasEditorModal';
 
 // FIX: Moved the `AIStudio` interface into the `declare global` block to resolve a TypeScript error regarding subsequent property declarations and ensure type consistency for `window.aistudio`.
 // Add this global declaration for window.aistudio
@@ -427,7 +426,7 @@ const QUOTE_TOOL_PAGE_HTML = `
         const hiddenExportGrid = document.getElementById('hiddenExportGrid');
         const modalExportBoard = document.getElementById('modalExportBoard');
         
-        let currentMode = '6'; // State is now session-only, not persisted
+        let currentMode = sessionStorage.getItem('quoteToolMode') || '6';
         let currentRatio = '3/4';
 
         // Initialize fresh image sources every time
@@ -468,7 +467,8 @@ const QUOTE_TOOL_PAGE_HTML = `
             
             if (!container.querySelector('span')) {
                 const span = document.createElement('span');
-                const placeholderText = mode === '1' ? 'Click hoặc kéo thả ảnh' : \`Click hoặc kéo thả ảnh \${index + 1}\`;
+                // FIX: A nested template literal here would cause a syntax error. Changed to string concatenation.
+                const placeholderText = mode === '1' ? 'Click hoặc kéo thả ảnh' : 'Click hoặc kéo thả ảnh ' + (index + 1);
                 span.textContent = placeholderText;
                 container.prepend(span);
             }
@@ -600,6 +600,7 @@ const QUOTE_TOOL_PAGE_HTML = `
         }
 
         function switchMode(mode) {
+            sessionStorage.setItem('quoteToolMode', mode);
             for (let key in grids) grids[key].classList.remove('active');
             grids[mode].classList.add('active');
             currentMode = mode;
@@ -949,7 +950,7 @@ const TOOL_PAGE_HTML = `
                 window.parent.postMessage({
                     type: 'toolImageUpload',
                     payload: {
-                        // FIX: Replace nested template literal with string concatenation.
+                        // FIX: A nested template literal here would cause a syntax error. Changed to string concatenation.
                         name: 'edited_image_' + new Date().getTime() + '.png',
                         type: 'image/png',
                         size: 0,
@@ -1068,7 +1069,7 @@ const TOOL_PAGE_HTML = `
             if (!file) return;
 
             // Hiển thị thông tin file
-            // FIX: Replace nested template literal with string concatenation.
+            // FIX: A nested template literal here would cause a syntax error. Changed to string concatenation.
             fileInfo.textContent = 'File: ' + file.name + ' (' + (file.size/1024).toFixed(1) + 'KB)';
 
             const reader = new FileReader();
@@ -1079,7 +1080,7 @@ const TOOL_PAGE_HTML = `
                 
                 // Hiển thị thông tin ảnh khi load xong
                 originalImage.onload = function() {
-                    // FIX: Replace nested template literal with string concatenation.
+                    // FIX: A nested template literal here would cause a syntax error. Changed to string concatenation.
                     originalInfo.textContent = 'Kích thước: ' + this.width + ' × ' + this.height + ' pixels';
                 };
             };
@@ -1200,7 +1201,7 @@ const TOOL_PAGE_HTML = `
 
             const link = document.createElement('a');
             link.href = processedImageData;
-            // FIX: Replace nested template literal with string concatenation.
+            // FIX: A nested template literal here would cause a syntax error. Changed to string concatenation.
             link.download = 'anh_thuoc_' + new Date().getTime() + '.png';
             link.click();
         }
@@ -1214,44 +1215,37 @@ type AspectRatio = '9:16' | '3:4' | '1:1' | '16:9' | '4:3';
 const App: React.FC = () => {
   const [prompt, setPrompt] = useState<string>('');
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
-  const [generatedImage, setGeneratedImage] = useState<string | null>(null);
+  
+  const [pristineGeneratedImage, setPristineGeneratedImage] = useState<string | null>(null);
+  const [displayGeneratedImage, setDisplayGeneratedImage] = useState<string | null>(null);
+
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [templates, setTemplates] = useLocalStorage<PromptTemplate[]>('promptTemplates', INITIAL_PROMPTS);
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>('9:16');
   
-  // State for prompt helpers
   const [isTranslating, setIsTranslating] = useState<boolean>(false);
   const [isEnhancing, setIsEnhancing] = useState<boolean>(false);
 
-  // State for the uploaded image text editor modal
   const [isTextEditorOpen, setIsTextEditorOpen] = useState<boolean>(false);
   const [editingFileIndex, setEditingFileIndex] = useState<number | null>(null);
   const [originalExtractedTextLines, setOriginalExtractedTextLines] = useState<string[]>([]);
   const [isExtractingText, setIsExtractingText] = useState<boolean>(false);
   const [isApplyingText, setIsApplyingText] = useState<boolean>(false);
   
-  // State for the image editor (inpainting) modal
   const [isImageEditorOpen, setIsImageEditorOpen] = useState<boolean>(false);
   const [isApplyingEdit, setIsApplyingEdit] = useState<boolean>(false);
   const [editError, setEditError] = useState<string | null>(null);
 
-  // State for the generated image text editor modal
   const [isGeneratedTextEditorOpen, setIsGeneratedTextEditorOpen] = useState<boolean>(false);
   const [originalGeneratedTextLines, setOriginalGeneratedTextLines] = useState<string[]>([]);
   const [isExtractingGeneratedText, setIsExtractingGeneratedText] = useState<boolean>(false);
   const [isApplyingGeneratedText, setIsApplyingGeneratedText] = useState<boolean>(false);
 
-  // State for the generated image add text modal
-  const [isAddTextModalOpen, setIsAddTextModalOpen] = useState<boolean>(false);
-  const [canvasElements, setCanvasElements] = useState<CanvasElement[]>([]);
-
-  // State for sharing
   const [isShareModalOpen, setIsShareModalOpen] = useState<boolean>(false);
   const [isViewingShared, setIsViewingShared] = useState<boolean>(false);
   const [sharedPrompt, setSharedPrompt] = useState<string>('');
   
-  // State for video generation
   const [isVideoPromptModalOpen, setIsVideoPromptModalOpen] = useState<boolean>(false);
   const [isVideoGenerationModalOpen, setIsVideoGenerationModalOpen] = useState<boolean>(false);
   const [isVideoLoading, setIsVideoLoading] = useState<boolean>(false);
@@ -1260,16 +1254,15 @@ const App: React.FC = () => {
   const [videoError, setVideoError] = useState<string | null>(null);
   const currentVideoUrlRef = React.useRef<string | null>(null);
 
-  // State for the tool modal
   const [isToolModalOpen, setIsToolModalOpen] = useState<boolean>(false);
   const [isQuoteToolModalOpen, setIsQuoteToolModalOpen] = useState<boolean>(false);
   const [quoteToolInstanceKey, setQuoteToolInstanceKey] = useState(0);
 
-  // State for video API key selection
+  const [isCanvasEditorOpen, setIsCanvasEditorOpen] = useState<boolean>(false);
+  const [canvasElements, setCanvasElements] = useState<CanvasElement[]>([]);
+
   const [isApiKeySelected, setIsApiKeySelected] = useState<boolean>(false);
 
-
-  // Effect to check for shared content in URL on load
   useEffect(() => {
     try {
         if (window.location.hash && window.location.hash.startsWith('#share=')) {
@@ -1282,7 +1275,7 @@ const App: React.FC = () => {
             const data = JSON.parse(decodedString);
 
             if (data.image && typeof data.prompt === 'string') {
-                setGeneratedImage(`data:image/png;base64,${data.image}`);
+                setDisplayGeneratedImage(`data:image/png;base64,${data.image}`);
                 setSharedPrompt(data.prompt);
                 setIsViewingShared(true);
             } else {
@@ -1295,7 +1288,6 @@ const App: React.FC = () => {
     }
   }, []);
 
-  // Effect to check for selected API key on mount for video generation
   useEffect(() => {
     const checkApiKey = async () => {
         if (window.aistudio && await window.aistudio.hasSelectedApiKey()) {
@@ -1305,7 +1297,6 @@ const App: React.FC = () => {
     checkApiKey();
   }, []);
 
-  // Effect to listen for messages from the iframe tool
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
         const { type, payload } = event.data;
@@ -1314,26 +1305,20 @@ const App: React.FC = () => {
             const newFile: UploadedFile = {
                 name: payload.name || 'edited-image.png',
                 type: payload.type || 'image/png',
-                // Approximate size from base64 length
-                size: (payload.base64.length * 3) / 4 - (payload.base64.endsWith('==') ? 2 : (payload.base64.endsWith('=') ? 1 : 0)),
+                size: (payload.base64.length * 3) / 4,
                 base64: payload.base64,
             };
             setUploadedFiles(prev => [...prev, newFile]);
-            
-            // Close the modal for better UX
             setIsToolModalOpen(false);
         }
     };
 
     window.addEventListener('message', handleMessage);
-
     return () => {
         window.removeEventListener('message', handleMessage);
     };
   }, []);
 
-
-  // Initialize AI Client
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
 
   const openAndResetQuoteTool = () => {
@@ -1352,7 +1337,6 @@ const App: React.FC = () => {
     }
   }
 
-    // --- Prompt Helper Functions ---
   const handleTranslatePrompt = async () => {
       if (!prompt.trim()) return;
       setIsTranslating(true);
@@ -1393,7 +1377,6 @@ const App: React.FC = () => {
       }
   };
 
-  // --- Core Image Generation ---
   const handleGenerateImage = async () => {
     if (!prompt.trim()) {
       setError('Please enter a prompt to generate an image.');
@@ -1401,13 +1384,14 @@ const App: React.FC = () => {
     }
     setIsLoading(true);
     setError(null);
-    setGeneratedImage(null);
+    setPristineGeneratedImage(null);
+    setDisplayGeneratedImage(null);
+    setCanvasElements([]); // Reset canvas elements for the new image
 
     try {
       let newImageBase64: string | undefined;
 
       if (uploadedFiles.length > 0) {
-        // Multimodal generation with uploaded images
         const imageParts = uploadedFiles.map(file => ({
             inlineData: { mimeType: file.type, data: file.base64 }
         }));
@@ -1429,7 +1413,6 @@ const App: React.FC = () => {
         newImageBase64 = imagePart?.inlineData?.data;
 
       } else {
-        // Text-to-image generation
         const response = await ai.models.generateImages({
             model: 'imagen-4.0-generate-001',
             prompt: prompt,
@@ -1443,8 +1426,9 @@ const App: React.FC = () => {
       }
 
       if (newImageBase64) {
-        setGeneratedImage(`data:image/png;base64,${newImageBase64}`);
-        setCanvasElements([]); // Reset canvas elements for the new image
+        const imageWithPrefix = `data:image/png;base64,${newImageBase64}`;
+        setPristineGeneratedImage(imageWithPrefix);
+        setDisplayGeneratedImage(imageWithPrefix);
       } else {
         setError('Image generation failed. The model did not return an image.');
       }
@@ -1456,577 +1440,424 @@ const App: React.FC = () => {
     }
   };
 
-  // --- Video Generation ---
   const handleOpenVideoPromptModal = async () => {
     if (window.aistudio) {
         const hasKey = await window.aistudio.hasSelectedApiKey();
         if (!hasKey) {
-            try {
-                await window.aistudio.openSelectKey();
-                // After user action, assume a key is selected to proceed.
-                // The actual API call will validate it.
-                setIsApiKeySelected(true);
-            } catch (e) {
-                console.error("API key selection dialog failed:", e);
-                setVideoError("Could not open the API key selection dialog.");
-                setIsVideoGenerationModalOpen(true); // Show error in the video modal
-                return; // Stop if the dialog fails to open
-            }
+            await window.aistudio.openSelectKey();
         }
+        setIsApiKeySelected(true);
+        setIsVideoPromptModalOpen(true);
     }
-    setIsVideoPromptModalOpen(true);
   };
 
   const handleGenerateVideo = async (videoPrompt: string) => {
-    if (!generatedImage || !videoPrompt) {
-        setVideoError("An image and prompt are required to generate a video.");
+    if (!pristineGeneratedImage) {
+        setVideoError("No base image available to generate a video from.");
         return;
     }
-
-    // Revoke previous URL if it exists
-    if (currentVideoUrlRef.current) {
-        URL.revokeObjectURL(currentVideoUrlRef.current);
-        currentVideoUrlRef.current = null;
-    }
-
+    setIsVideoPromptModalOpen(false);
     setIsVideoGenerationModalOpen(true);
     setIsVideoLoading(true);
-    setVideoError(null);
+    setVideoGenerationStatus("Initializing video generation...");
     setGeneratedVideoUrl(null);
-    setVideoGenerationStatus("Initializing video model...");
+    setVideoError(null);
 
     try {
-        // Create a new AI instance right before the call to use the latest selected key.
-        const videoAi = new GoogleGenAI({ apiKey: process.env.API_KEY! });
-        const imageBase64 = stripBase64Prefix(generatedImage);
+        if (window.aistudio && !await window.aistudio.hasSelectedApiKey()) {
+            await window.aistudio.openSelectKey();
+        }
 
-        let operation = await videoAi.models.generateVideos({
+        const videoAI = new GoogleGenAI({ apiKey: process.env.API_KEY! });
+
+        let operation = await videoAI.models.generateVideos({
             model: 'veo-3.1-fast-generate-preview',
             prompt: videoPrompt,
             image: {
-                imageBytes: imageBase64,
+                imageBytes: stripBase64Prefix(pristineGeneratedImage),
                 mimeType: 'image/png',
             },
             config: {
                 numberOfVideos: 1,
-                // Choose the closest supported aspect ratio for Veo.
-                aspectRatio: aspectRatio === '9:16' || aspectRatio === '3:4' ? '9:16' : '16:9',
                 resolution: '720p',
+                aspectRatio: '9:16'
             }
         });
-
-        const statusMessages = [
-            "Your video is in the queue...",
-            "Warming up the animation engine...",
-            "Generation in progress, this may take a few minutes...",
-            "Adding visual effects...",
-            "Almost there, finalizing the video..."
-        ];
-        let messageIndex = 0;
+        
+        setVideoGenerationStatus("Video is processing... This can take several minutes.");
 
         while (!operation.done) {
-            setVideoGenerationStatus(statusMessages[messageIndex % statusMessages.length]);
-            messageIndex++;
-            await new Promise(resolve => setTimeout(resolve, 15000)); // Poll every 15 seconds
-            operation = await videoAi.operations.getVideosOperation({ operation: operation });
+            await new Promise(resolve => setTimeout(resolve, 10000));
+            operation = await videoAI.operations.getVideosOperation({ operation: operation });
         }
+        
+        setVideoGenerationStatus("Finalizing video...");
 
         const downloadLink = operation.response?.generatedVideos?.[0]?.video?.uri;
-        if (!downloadLink) {
+        if (downloadLink) {
+            const response = await fetch(`${downloadLink}&key=${process.env.API_KEY}`);
+            if (!response.ok) throw new Error(`Failed to fetch video: ${response.statusText}`);
+            const blob = await response.blob();
+            const videoObjectURL = URL.createObjectURL(blob);
+            currentVideoUrlRef.current = videoObjectURL;
+            setGeneratedVideoUrl(videoObjectURL);
+        } else {
             throw new Error("Video generation completed, but no download link was provided.");
         }
 
-        setVideoGenerationStatus("Downloading video...");
-        const videoResponse = await fetch(`${downloadLink}&key=${process.env.API_KEY}`);
-        if (!videoResponse.ok) {
-            throw new Error(`Failed to download video: ${videoResponse.statusText}`);
-        }
-
-        const blob = await videoResponse.blob();
-        const url = URL.createObjectURL(blob);
-        currentVideoUrlRef.current = url;
-        setGeneratedVideoUrl(url);
-
     } catch (e) {
-        console.error("Video generation failed:", e);
+        console.error(e);
         const errorMessage = (e as Error).message;
-        
         if (errorMessage.includes("Requested entity was not found.")) {
-             setVideoError("Your API key may be invalid. Please try generating again to select a new key. For billing info, visit: ai.google.dev/gemini-api/docs/billing");
-             setIsApiKeySelected(false); // Reset key state to re-trigger dialog on next attempt.
+             setVideoError("API Key validation failed. Please try selecting your API key again. A link to the billing documentation can be found at ai.google.dev/gemini-api/docs/billing");
+             setIsApiKeySelected(false);
         } else {
             setVideoError(`An error occurred: ${errorMessage}`);
         }
     } finally {
         setIsVideoLoading(false);
-        setVideoGenerationStatus("Done.");
+        setVideoGenerationStatus("");
     }
   };
 
+  useEffect(() => {
+    return () => {
+      if (currentVideoUrlRef.current) {
+        URL.revokeObjectURL(currentVideoUrlRef.current);
+      }
+    };
+  }, []);
 
-  // --- Utility Functions for Uploaded Images ---
-  const handleRemoveBackground = useCallback(async (index: number) => {
-    const file = uploadedFiles[index];
-    if (!file) return;
+  const handleOpenImageEditor = () => {
+    if (displayGeneratedImage) {
+        setIsImageEditorOpen(true);
+        setEditError(null);
+    }
+  }
 
-    setUploadedFiles(files => files.map((f, i) => i === index ? { ...f, isProcessing: true } : f));
-
+  const handleApplyImageEdit = async (maskBase64: string, editPrompt: string) => {
+    if (!displayGeneratedImage) return;
+    setIsApplyingEdit(true);
+    setEditError(null);
     try {
         const response = await ai.models.generateContent({
             model: 'gemini-2.5-flash-image',
             contents: {
                 parts: [
-                    { inlineData: { mimeType: file.type, data: file.base64 } },
-                    { text: 'remove the background, leaving only the main subject with a transparent background' }
+                    { inlineData: { mimeType: 'image/png', data: stripBase64Prefix(displayGeneratedImage) } },
+                    { text: editPrompt },
+                    { inlineData: { mimeType: 'image/png', data: maskBase64 } }
                 ]
             },
-            config: {
-                responseModalities: [Modality.IMAGE],
-            }
-        });
-
-      const imagePart = response.candidates?.[0]?.content?.parts?.find(part => part.inlineData);
-      if (imagePart && imagePart.inlineData) {
-        const newBase64 = imagePart.inlineData.data;
-        setUploadedFiles(files => files.map((f, i) => i === index ? { ...f, base64: newBase64, isProcessing: false } : f));
-      } else {
-        throw new Error("Failed to get image data from the response.");
-      }
-    } catch (e) {
-      console.error("Background removal failed:", e);
-    } finally {
-      setUploadedFiles(files => files.map((f, i) => i === index ? { ...f, isProcessing: false } : f));
-    }
-  }, [uploadedFiles, ai.models]);
-
-  const extractTextToLines = async (file: {type: string, base64: string}): Promise<string[]> => {
-    const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: { parts: [{ inlineData: { mimeType: file.type, data: file.base64 } }, { text: 'Extract all text from this image line by line. If no text is present, return an empty response.' }] },
-      });
-    return response.text.trim().split('\n').filter(line => line.trim() !== '');
-  }
-
-  // --- Handlers for UPLOADED Image Text Editor ---
-  const handleOpenEditText = useCallback(async (index: number) => {
-    setEditingFileIndex(index);
-    setOriginalExtractedTextLines([]);
-    setIsTextEditorOpen(true);
-    setIsExtractingText(true);
-    try {
-      const file = uploadedFiles[index];
-      const lines = await extractTextToLines(file);
-      setOriginalExtractedTextLines(lines);
-    } catch (e) {
-      console.error("Text extraction failed:", e);
-      setOriginalExtractedTextLines(['Lỗi trích xuất văn bản.']);
-    } finally {
-      setIsExtractingText(false);
-    }
-  }, [uploadedFiles]);
-
-  const handleReExtractText = useCallback(async () => {
-    if (editingFileIndex === null) return;
-    setIsExtractingText(true);
-    setOriginalExtractedTextLines([]);
-     try {
-      const file = uploadedFiles[editingFileIndex];
-      const lines = await extractTextToLines(file);
-      setOriginalExtractedTextLines(lines);
-    } catch (e) {
-      console.error("Text extraction failed:", e);
-      setOriginalExtractedTextLines(['Lỗi trích xuất văn bản.']);
-    } finally {
-      setIsExtractingText(false);
-    }
-  }, [editingFileIndex, uploadedFiles]);
-
-  const handleApplyTextChanges = useCallback(async (newTextLines: string[]) => {
-    if (editingFileIndex === null) return;
-
-    const instructions = [];
-    const originalLines = originalExtractedTextLines;
-    const maxLength = Math.max(originalLines.length, newTextLines.length);
-
-    for (let i = 0; i < maxLength; i++) {
-        const oldLine = originalLines[i];
-        const newLine = newTextLines[i];
-
-        if (oldLine && !newLine) { // Line deleted
-            instructions.push(`remove the text "${oldLine}"`);
-        } else if (oldLine && newLine && oldLine !== newLine) { // Line changed
-            instructions.push(`replace the text "${oldLine}" with "${newLine}"`);
-        } else if (!oldLine && newLine) { // Line added
-            instructions.push(`add the text "${newLine}" in a suitable, aesthetically pleasing location`);
-        }
-    }
-
-    if (instructions.length === 0) return;
-
-    setIsApplyingText(true);
-    const file = uploadedFiles[editingFileIndex];
-
-    try {
-        const prompt = `In the provided image, perform the following text edits: ${instructions.join('; ')}. It is crucial to maintain the original font, style, color, perspective, and lighting of the text to ensure the edit is seamless and unnoticeable.`;
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash-image',
-            contents: { parts: [{ inlineData: { mimeType: file.type, data: file.base64 } }, { text: prompt }] },
             config: { responseModalities: [Modality.IMAGE] }
         });
         const imagePart = response.candidates?.[0]?.content?.parts?.find(part => part.inlineData);
-        if (imagePart && imagePart.inlineData) {
-            const newBase64 = imagePart.inlineData.data;
-            setUploadedFiles(files => files.map((f, i) => i === editingFileIndex ? { ...f, base64: newBase64 } : f));
-            setIsTextEditorOpen(false);
+        const newImageBase64 = imagePart?.inlineData?.data;
+        if (newImageBase64) {
+            const imageWithPrefix = `data:image/png;base64,${newImageBase64}`;
+            setDisplayGeneratedImage(imageWithPrefix);
+            setPristineGeneratedImage(imageWithPrefix);
+            setIsImageEditorOpen(false);
         } else {
-            throw new Error("Failed to get edited image from the response.");
+            setEditError('Image editing failed. The model did not return an image.');
         }
     } catch (e) {
-        console.error("Applying text changes failed:", e);
+        console.error(e);
+        setEditError(`An error occurred during editing: ${(e as Error).message}`);
     } finally {
-        setIsApplyingText(false);
+        setIsApplyingEdit(false);
     }
-  }, [editingFileIndex, uploadedFiles, originalExtractedTextLines]);
+  }
 
-  // --- Handlers for GENERATED Image Inpainting Editor ---
-  const handleApplyImageEdit = async (maskBase64: string, editPrompt: string) => {
-      if (!generatedImage) return;
-      setIsApplyingEdit(true);
-      setEditError(null);
-      try {
-          const response = await ai.models.generateContent({
-              model: 'gemini-2.5-flash-image',
-              contents: {
-                  parts: [
-                      { inlineData: { mimeType: 'image/png', data: stripBase64Prefix(generatedImage) } },
-                      { inlineData: { mimeType: 'image/png', data: maskBase64 } },
-                      { text: editPrompt },
-                  ]
-              },
-              config: {
-                  responseModalities: [Modality.IMAGE],
-              }
-          });
-          const imagePart = response.candidates?.[0]?.content?.parts?.find(part => part.inlineData);
-          if (imagePart && imagePart.inlineData) {
-              const newBase64 = imagePart.inlineData.data;
-              setGeneratedImage(`data:image/png;base64,${newBase64}`);
-              setIsImageEditorOpen(false);
-          } else {
-              throw new Error("Model did not return an edited image.");
-          }
-      } catch (e) {
-          console.error("Image editing failed:", e);
-          setEditError(`An error occurred: ${(e as Error).message}`);
-      } finally {
-          setIsApplyingEdit(false);
-      }
-  };
+  const handleOpenTextEditor = async (index: number | 'generated') => {
+    const isForGenerated = index === 'generated';
+    const targetFile = isForGenerated ? { base64: displayGeneratedImage || '', type: 'image/png', name: 'Generated Image' } : uploadedFiles[index];
+    if (!targetFile || !targetFile.base64) return;
 
-  // --- Handlers for GENERATED Image Text Editor ---
-  const handleOpenGeneratedTextEditor = useCallback(async () => {
-    if (!generatedImage) return;
-    setOriginalGeneratedTextLines([]);
-    setIsGeneratedTextEditorOpen(true);
-    setIsExtractingGeneratedText(true);
+    if (isForGenerated) {
+        setIsGeneratedTextEditorOpen(true);
+        setIsExtractingGeneratedText(true);
+        setOriginalGeneratedTextLines([]);
+    } else {
+        setEditingFileIndex(index);
+        setIsTextEditorOpen(true);
+        setIsExtractingText(true);
+        setOriginalExtractedTextLines([]);
+    }
+
     try {
-        const lines = await extractTextToLines({ type: 'image/png', base64: stripBase64Prefix(generatedImage) });
-        setOriginalGeneratedTextLines(lines);
-    } catch (e) {
-        console.error("Generated text extraction failed:", e);
-        setOriginalGeneratedTextLines(['Lỗi trích xuất văn bản.']);
-    } finally {
-        setIsExtractingGeneratedText(false);
-    }
-  }, [generatedImage]);
-
-  const handleReExtractGeneratedText = useCallback(async () => {
-    if (!generatedImage) return;
-    setIsExtractingGeneratedText(true);
-    setOriginalGeneratedTextLines([]);
-    try {
-        const lines = await extractTextToLines({ type: 'image/png', base64: stripBase64Prefix(generatedImage) });
-        setOriginalGeneratedTextLines(lines);
-    } catch (e) {
-        console.error("Generated text extraction failed:", e);
-        setOriginalGeneratedTextLines(['Lỗi trích xuất văn bản.']);
-    } finally {
-        setIsExtractingGeneratedText(false);
-    }
-  }, [generatedImage]);
-
-  const handleApplyGeneratedTextChanges = useCallback(async (newTextLines: string[]) => {
-    if (!generatedImage) return;
-
-    const instructions = [];
-    const originalLines = originalGeneratedTextLines;
-    const maxLength = Math.max(originalLines.length, newTextLines.length);
-
-    for (let i = 0; i < maxLength; i++) {
-        const oldLine = originalLines[i];
-        const newLine = newTextLines[i];
-
-        if (oldLine && !newLine) { // Line deleted
-            instructions.push(`remove the text "${oldLine}"`);
-        } else if (oldLine && newLine && oldLine !== newLine) { // Line changed
-            instructions.push(`replace the text "${oldLine}" with "${newLine}"`);
-        } else if (!oldLine && newLine) { // Line added
-            instructions.push(`add the text "${newLine}" in a suitable, aesthetically pleasing location`);
-        }
-    }
-
-    if (instructions.length === 0) return;
-    
-    setIsApplyingGeneratedText(true);
-    try {
-        const prompt = `In the provided image, perform the following text edits: ${instructions.join('; ')}. It is crucial to maintain the original font, style, color, perspective, and lighting of the text to ensure the edit is seamless and unnoticeable.`;
         const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash-image',
+            model: 'gemini-2.5-flash',
             contents: {
                 parts: [
-                    { inlineData: { mimeType: 'image/png', data: stripBase64Prefix(generatedImage) } },
-                    { text: prompt }
+                    { text: "Extract all text from this image, line by line. Provide only the extracted text, with each line on a new line. Do not include any other commentary." },
+                    { inlineData: { mimeType: targetFile.type, data: targetFile.base64 } }
                 ]
             },
-            config: {
-                responseModalities: [Modality.IMAGE],
-            }
         });
-        const imagePart = response.candidates?.[0]?.content?.parts?.find(part => part.inlineData);
-        if (imagePart && imagePart.inlineData) {
-            const newBase64 = imagePart.inlineData.data;
-            setGeneratedImage(`data:image/png;base64,${newBase64}`);
-            setIsGeneratedTextEditorOpen(false);
+        const extractedLines = response.text.trim().split('\n').filter(line => line.trim() !== '');
+        if (isForGenerated) setOriginalGeneratedTextLines(extractedLines);
+        else setOriginalExtractedTextLines(extractedLines);
+    } catch (e) {
+        console.error("Text extraction failed:", e);
+        if (isForGenerated) setOriginalGeneratedTextLines(['Error extracting text.']);
+        else setOriginalExtractedTextLines(['Error extracting text.']);
+    } finally {
+        if (isForGenerated) setIsExtractingGeneratedText(false);
+        else setIsExtractingText(false);
+    }
+  }
+  
+  const handleApplyTextChanges = async (newTextLines: string[], index: number | 'generated') => {
+    const isForGenerated = index === 'generated';
+    const originalLines = isForGenerated ? originalGeneratedTextLines : originalExtractedTextLines;
+    const targetFile = isForGenerated ? { base64: displayGeneratedImage || '', type: 'image/png' } : uploadedFiles[index as number];
+    if (!targetFile || !targetFile.base64) return;
+    
+    let textChangePrompt = 'Critically important: Edit the text in the provided image. ';
+    originalLines.forEach(line => {
+      if (!newTextLines.includes(line)) textChangePrompt += `Remove the text "${line}". `;
+    });
+    const modifiedOrAdded = newTextLines.filter(line => !originalLines.includes(line));
+    if (modifiedOrAdded.length > 0) {
+        textChangePrompt += `Add or modify text to include: ${modifiedOrAdded.map(l => `"${l}"`).join(', ')}. `;
+    }
+
+    if (modifiedOrAdded.length === 0 && textChangePrompt === 'Critically important: Edit the text in the provided image. ') {
+        if (isForGenerated) setIsGeneratedTextEditorOpen(false); else setIsTextEditorOpen(false);
+        return;
+    }
+    
+    if (isForGenerated) setIsApplyingGeneratedText(true); else setIsApplyingText(true);
+    
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash-image',
+            contents: { parts: [{ inlineData: { mimeType: targetFile.type, data: stripBase64Prefix(targetFile.base64) } }, { text: textChangePrompt }] },
+            config: { responseModalities: [Modality.IMAGE] }
+        });
+        const newImageBase64 = response.candidates?.[0]?.content?.parts?.find(part => part.inlineData)?.inlineData?.data;
+
+        if (newImageBase64) {
+            if (isForGenerated) {
+                const fullBase64 = `data:image/png;base64,${newImageBase64}`;
+                setDisplayGeneratedImage(fullBase64);
+                setPristineGeneratedImage(fullBase64);
+                setIsGeneratedTextEditorOpen(false);
+            } else {
+                setUploadedFiles(files => files.map((file, i) => i === index ? { ...file, base64: newImageBase64 } : file));
+                setIsTextEditorOpen(false);
+            }
         } else {
-            throw new Error("Failed to get edited image from the response.");
+             if (isForGenerated) setOriginalGeneratedTextLines(prev => [...prev, 'Error: Could not apply changes.']);
+             else setOriginalExtractedTextLines(prev => [...prev, 'Error: Could not apply changes.']);
         }
     } catch (e) {
-        console.error("Applying generated text changes failed:", e);
+        console.error("Text application failed:", e);
     } finally {
-        setIsApplyingGeneratedText(false);
+        if (isForGenerated) setIsApplyingGeneratedText(false); else setIsApplyingText(false);
     }
-  }, [generatedImage, originalGeneratedTextLines]);
-
-  // --- Handler for GENERATED Image Add Text ---
-  const handleApplyAddText = (newImageWithTextBase64: string, elements: CanvasElement[]) => {
-    setGeneratedImage(newImageWithTextBase64);
-    setCanvasElements(elements);
-    setIsAddTextModalOpen(false);
-  };
-  
-  // --- Handler for double-clicking generated image to send to quote tool ---
-  const handleGeneratedImageDoubleClick = () => {
-    if (!generatedImage) return;
-
-    openAndResetQuoteTool();
-    
-    // Use a timeout to ensure the iframe is rendered and ready to receive messages
-    setTimeout(() => {
-        const iframe = document.querySelector<HTMLIFrameElement>('#quote-tool-iframe');
-        if (iframe?.contentWindow) {
-            iframe.contentWindow.postMessage({
-                type: 'addImageToQuote',
-                payload: {
-                    base64: generatedImage // Send with prefix
-                }
-            }, '*');
-        } else {
-            console.warn('Quote tool iframe not found or not ready.');
-        }
-    }, 200);
   };
 
+  const handleOpenShareModal = () => {
+    if (displayGeneratedImage) setIsShareModalOpen(true);
+  };
 
-  // ---- RENDER ----
-  if (isViewingShared) {
-    return (
-        <div className="min-h-screen bg-gray-50">
-            <Header onToolButtonClick={() => setIsToolModalOpen(true)} onQuoteToolButtonClick={openAndResetQuoteTool} />
-            <main className="container mx-auto p-4 md:p-8 text-center">
-                <h2 className="text-2xl font-bold text-gray-800 mb-4">Shared Poster</h2>
-                {generatedImage ? (
-                    <img src={generatedImage} alt="Shared generated poster" className="max-w-full max-h-[70vh] object-contain rounded-lg mx-auto shadow-lg mb-4" />
-                ) : (
-                    <div className="w-full h-96 bg-gray-200 flex items-center justify-center rounded-lg">
-                        <p className="text-gray-500">Loading shared image...</p>
-                    </div>
-                )}
-                <div className="bg-white p-4 rounded-lg shadow-sm max-w-3xl mx-auto mt-4">
-                    <h3 className="text-lg font-semibold text-gray-700">Prompt:</h3>
-                    <p className="text-gray-600 mt-2 italic text-left">"{sharedPrompt}"</p>
-                </div>
-                <button
-                    onClick={() => { window.location.href = window.location.pathname; }}
-                    className="mt-8 px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700"
-                >
-                    Create Your Own Poster
-                </button>
-            </main>
-            <IframeModal
-                isOpen={isToolModalOpen}
-                onClose={() => setIsToolModalOpen(false)}
-                htmlContent={TOOL_PAGE_HTML}
-                title="Công cụ Chỉnh sửa Ảnh Thuốc"
-                id="image-editor-tool-iframe"
-            />
-            <IframeModal
-                key={`quote-tool-${quoteToolInstanceKey}`}
-                isOpen={isQuoteToolModalOpen}
-                onClose={() => setIsQuoteToolModalOpen(false)}
-                htmlContent={QUOTE_TOOL_PAGE_HTML}
-                title="Tạo Bảng Báo Giá Thuốc"
-                id="quote-tool-iframe"
-             />
-        </div>
-    );
+  const handleClearSharedView = () => {
+    setIsViewingShared(false);
+    setDisplayGeneratedImage(null);
+    setSharedPrompt('');
+    window.location.hash = '';
   }
+  
+  const handleDoubleClickGeneratedImage = () => {
+    const iframe = document.getElementById('quote-tool-iframe') as HTMLIFrameElement;
+    if (iframe && iframe.contentWindow && displayGeneratedImage) {
+        iframe.contentWindow.postMessage({
+            type: 'addImageToQuote',
+            payload: { base64: displayGeneratedImage }
+        }, '*');
+    }
+  };
+
+  const handleOpenCanvasEditor = () => {
+    if (pristineGeneratedImage) {
+        setIsCanvasEditorOpen(true);
+    }
+  };
+
+  const handleApplyCanvasChanges = (newImageBase64: string, elements: CanvasElement[]) => {
+    setDisplayGeneratedImage(newImageBase64);
+    setPristineGeneratedImage(newImageBase64);
+    setCanvasElements(elements);
+    setIsCanvasEditorOpen(false);
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
       <Header onToolButtonClick={() => setIsToolModalOpen(true)} onQuoteToolButtonClick={openAndResetQuoteTool} />
       <main className="container mx-auto p-4 md:p-8">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Left Panel: Controls */}
-          <div className="bg-white p-6 rounded-lg shadow-sm flex flex-col gap-8">
-            <ImageUploader
-              uploadedFiles={uploadedFiles}
-              setUploadedFiles={setUploadedFiles}
-              onRemoveBackground={handleRemoveBackground}
-              onEditText={handleOpenEditText}
-            />
-            <PromptManager
-              prompt={prompt}
-              setPrompt={setPrompt}
-              templates={templates}
-              setTemplates={setTemplates}
-              onTranslate={handleTranslatePrompt}
-              onEnhance={handleEnhancePrompt}
-              isTranslating={isTranslating}
-              isEnhancing={isEnhancing}
-            />
-            <AspectRatioSelector
-              selectedAspectRatio={aspectRatio}
-              setSelectedAspectRatio={setAspectRatio}
-            />
-            <button
-              onClick={handleGenerateImage}
-              disabled={isLoading || !prompt.trim()}
-              className="w-full inline-flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-indigo-300 disabled:cursor-not-allowed transition-colors"
-            >
-              {isLoading && <div className="mr-3"><Spinner /></div>}
-              {isLoading ? 'Generating...' : 'Generate Image'}
-            </button>
-          </div>
-          {/* Right Panel: Image Display */}
-          <div className="bg-white p-6 rounded-lg shadow-sm flex justify-center items-center min-h-[500px] lg:min-h-0">
-            <GeneratedImageDisplay
-              isLoading={isLoading}
-              generatedImage={generatedImage}
-              error={error}
-              onEditImage={() => setIsImageEditorOpen(true)}
-              onEditText={handleOpenGeneratedTextEditor}
-              onAddText={() => setIsAddTextModalOpen(true)}
-              onShare={() => setIsShareModalOpen(true)}
-              onGenerateVideo={handleOpenVideoPromptModal}
-              onDoubleClick={handleGeneratedImageDoubleClick}
-            />
-          </div>
-        </div>
+        {isViewingShared ? (
+            <div className="bg-white p-6 rounded-lg shadow-lg mb-8 text-center">
+                <h2 className="text-2xl font-bold text-gray-800 mb-2">Viewing a Shared Design</h2>
+                <p className="text-gray-600 mb-4">Prompt used: <em className="bg-gray-100 p-1 rounded">{sharedPrompt}</em></p>
+                <GeneratedImageDisplay
+                    isLoading={false}
+                    generatedImage={displayGeneratedImage}
+                    error={null}
+                    onEditImage={() => {}} onEditText={() => {}} onShare={() => {}} onGenerateVideo={() => {}} onDoubleClick={() => {}} onOpenCanvasEditor={() => {}}
+                />
+                 <button 
+                    onClick={handleClearSharedView}
+                    className="mt-6 inline-flex items-center justify-center bg-indigo-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-indigo-700 transition-colors"
+                >
+                    Create Your Own
+                </button>
+            </div>
+        ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div className="space-y-8">
+                    <ImageUploader 
+                        uploadedFiles={uploadedFiles} 
+                        setUploadedFiles={setUploadedFiles}
+                        onRemoveBackground={async (index) => {
+                             const file = uploadedFiles[index];
+                             if (!file) return;
+                             setUploadedFiles(files => files.map((f, i) => i === index ? { ...f, isProcessing: true } : f));
+                             try {
+                                const response = await ai.models.generateContent({
+                                    model: 'gemini-2.5-flash-image',
+                                    contents: { parts: [ { text: "Remove the background of this image perfectly. The output must be a PNG with a transparent background." }, { inlineData: { mimeType: file.type, data: file.base64 } } ] },
+                                    config: { responseModalities: [Modality.IMAGE] }
+                                });
+                                const imagePart = response.candidates?.[0]?.content?.parts?.find(part => part.inlineData);
+                                const newB64 = imagePart?.inlineData?.data;
+                                if (newB64) {
+                                     setUploadedFiles(files => files.map((f, i) => i === index ? { ...f, base64: newB64, name: `${f.name.split('.')[0]}_no_bg.png` } : f));
+                                }
+                             } catch(e) { console.error(e); } finally {
+                                setUploadedFiles(files => files.map((f, i) => i === index ? { ...f, isProcessing: false } : f));
+                             }
+                        }}
+                        onEditText={(index) => handleOpenTextEditor(index)}
+                    />
+                    <PromptManager
+                        prompt={prompt}
+                        setPrompt={setPrompt}
+                        templates={templates}
+                        setTemplates={setTemplates}
+                        onTranslate={handleTranslatePrompt}
+                        onEnhance={handleEnhancePrompt}
+                        isTranslating={isTranslating}
+                        isEnhancing={isEnhancing}
+                    />
+                    <AspectRatioSelector selectedAspectRatio={aspectRatio} setSelectedAspectRatio={setAspectRatio} />
+                    <button
+                        onClick={handleGenerateImage}
+                        disabled={isLoading || !prompt.trim()}
+                        className="w-full bg-indigo-600 text-white font-bold text-lg py-4 px-6 rounded-lg hover:bg-indigo-700 transition-colors disabled:bg-indigo-300 disabled:cursor-not-allowed flex items-center justify-center gap-3"
+                    >
+                        {isLoading && <Spinner />}
+                        {isLoading ? 'Generating...' : 'Generate Poster'}
+                    </button>
+                </div>
+                <div className="flex justify-center items-center bg-gray-100 p-4 rounded-lg min-h-[400px] lg:min-h-0">
+                    <GeneratedImageDisplay
+                        isLoading={isLoading}
+                        generatedImage={displayGeneratedImage}
+                        error={error}
+                        onEditImage={handleOpenImageEditor}
+                        onEditText={() => handleOpenTextEditor('generated')}
+                        onShare={handleOpenShareModal}
+                        onGenerateVideo={handleOpenVideoPromptModal}
+                        onDoubleClick={handleDoubleClickGeneratedImage}
+                        onOpenCanvasEditor={handleOpenCanvasEditor}
+                    />
+                </div>
+            </div>
+        )}
       </main>
+      
+      {/* Modals */}
+      <TextEditorModal
+          isOpen={isTextEditorOpen}
+          onClose={() => setIsTextEditorOpen(false)}
+          file={editingFileIndex !== null ? uploadedFiles[editingFileIndex] : null}
+          initialTextLines={originalExtractedTextLines}
+          isExtracting={isExtractingText}
+          isApplying={isApplyingText}
+          onApply={(newLines) => editingFileIndex !== null && handleApplyTextChanges(newLines, editingFileIndex)}
+          onReExtract={() => editingFileIndex !== null && handleOpenTextEditor(editingFileIndex)}
+      />
 
-      {/* --- MODALS --- */}
+      <TextEditorModal
+          isOpen={isGeneratedTextEditorOpen}
+          onClose={() => setIsGeneratedTextEditorOpen(false)}
+          file={{ name: 'Generated Image', type: 'image/png', size: 0, base64: displayGeneratedImage || '' }}
+          initialTextLines={originalGeneratedTextLines}
+          isExtracting={isExtractingGeneratedText}
+          isApplying={isApplyingGeneratedText}
+          onApply={(newLines) => handleApplyTextChanges(newLines, 'generated')}
+          onReExtract={() => handleOpenTextEditor('generated')}
+      />
+
+      <ImageEditorModal
+          isOpen={isImageEditorOpen}
+          onClose={() => setIsImageEditorOpen(false)}
+          imageSrc={displayGeneratedImage || ''}
+          onApply={handleApplyImageEdit}
+          isApplying={isApplyingEdit}
+          error={editError}
+      />
+      
+       <CanvasEditorModal
+          isOpen={isCanvasEditorOpen}
+          onClose={() => setIsCanvasEditorOpen(false)}
+          imageSrc={pristineGeneratedImage || ''}
+          initialElements={canvasElements}
+          onApply={handleApplyCanvasChanges}
+          ai={ai}
+        />
+
+      <ShareModal
+        isOpen={isShareModalOpen}
+        onClose={() => setIsShareModalOpen(false)}
+        generatedImage={displayGeneratedImage || ''}
+        prompt={prompt}
+      />
+
+      <VideoPromptModal
+        isOpen={isVideoPromptModalOpen}
+        onClose={() => setIsVideoPromptModalOpen(false)}
+        imageSrc={pristineGeneratedImage || ''}
+        initialPrompt={prompt}
+        isGenerating={isVideoLoading}
+        onSubmit={handleGenerateVideo}
+      />
+
+      <VideoGenerationModal
+        isOpen={isVideoGenerationModalOpen}
+        onClose={() => setIsVideoGenerationModalOpen(false)}
+        isLoading={isVideoLoading}
+        status={videoGenerationStatus}
+        videoUrl={generatedVideoUrl}
+        error={videoError}
+      />
+      
       <IframeModal
         isOpen={isToolModalOpen}
         onClose={() => setIsToolModalOpen(false)}
         htmlContent={TOOL_PAGE_HTML}
-        title="Công cụ Chỉnh sửa Ảnh Thuốc"
-        id="image-editor-tool-iframe"
+        title="Công Cụ Chỉnh Sửa Ảnh"
       />
-
-       <IframeModal
-        key={`quote-tool-${quoteToolInstanceKey}`}
+      
+      <IframeModal
+        key={quoteToolInstanceKey}
+        id="quote-tool-iframe"
         isOpen={isQuoteToolModalOpen}
         onClose={() => setIsQuoteToolModalOpen(false)}
         htmlContent={QUOTE_TOOL_PAGE_HTML}
-        title="Tạo Bảng Báo Giá Thuốc"
-        id="quote-tool-iframe"
-      />
-
-      <TextEditorModal
-        isOpen={isTextEditorOpen}
-        onClose={() => setIsTextEditorOpen(false)}
-        file={editingFileIndex !== null ? uploadedFiles[editingFileIndex] : null}
-        initialTextLines={originalExtractedTextLines}
-        isExtracting={isExtractingText}
-        isApplying={isApplyingText}
-        onApply={handleApplyTextChanges}
-        onReExtract={handleReExtractText}
-      />
-      
-      {generatedImage && (
-        <ImageEditorModal
-            isOpen={isImageEditorOpen}
-            onClose={() => setIsImageEditorOpen(false)}
-            imageSrc={generatedImage}
-            onApply={handleApplyImageEdit}
-            isApplying={isApplyingEdit}
-            error={editError}
-        />
-      )}
-
-      {generatedImage && (
-         <TextEditorModal
-            isOpen={isGeneratedTextEditorOpen}
-            onClose={() => setIsGeneratedTextEditorOpen(false)}
-            file={{ name: 'Generated Image', type: 'image/png', size: 0, base64: stripBase64Prefix(generatedImage) }}
-            initialTextLines={originalGeneratedTextLines}
-            isExtracting={isExtractingGeneratedText}
-            isApplying={isApplyingGeneratedText}
-            onApply={handleApplyGeneratedTextChanges}
-            onReExtract={handleReExtractGeneratedText}
-      />
-      )}
-
-      {generatedImage && (
-        <AddTextModal
-            isOpen={isAddTextModalOpen}
-            onClose={() => setIsAddTextModalOpen(false)}
-            imageSrc={generatedImage}
-            initialElements={canvasElements}
-            onApply={handleApplyAddText}
-        />
-      )}
-
-      {generatedImage && (
-        <ShareModal
-            isOpen={isShareModalOpen}
-            onClose={() => setIsShareModalOpen(false)}
-            generatedImage={generatedImage}
-            prompt={prompt}
-        />
-      )}
-
-      {generatedImage && (
-        <VideoPromptModal
-          isOpen={isVideoPromptModalOpen}
-          onClose={() => setIsVideoPromptModalOpen(false)}
-          imageSrc={generatedImage}
-          initialPrompt={prompt}
-          isGenerating={isVideoLoading}
-          onSubmit={(videoPrompt) => {
-            setIsVideoPromptModalOpen(false);
-            handleGenerateVideo(videoPrompt);
-          }}
-        />
-      )}
-
-      <VideoGenerationModal
-          isOpen={isVideoGenerationModalOpen}
-          onClose={() => setIsVideoGenerationModalOpen(false)}
-          isLoading={isVideoLoading}
-          status={videoGenerationStatus}
-          videoUrl={generatedVideoUrl}
-          error={videoError}
+        title="Tạo Bảng Báo Giá"
       />
     </div>
   );

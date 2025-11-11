@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import type { GoogleGenAI } from '@google/genai';
 import { TrashIcon, TextBoxIcon, AlignLeftIcon, AlignCenterIcon, AlignRightIcon, UnderlineIcon, PhotoIcon, PaintBrushIcon, EraserIcon, RectangleIcon, EllipseIcon, DiamondIcon } from './Icons';
 import type { CanvasElement, TextProperties, ImageProperties, BannerProperties } from '../types';
 
@@ -8,17 +9,20 @@ interface CompleteTextStyle {
     isBold: boolean; isItalic: boolean; isUnderline: boolean;
 }
 
-interface AddTextModalProps {
+interface CanvasEditorModalProps {
   isOpen: boolean;
   onClose: () => void;
   imageSrc: string;
   initialElements: CanvasElement[];
   onApply: (newImageBase64: string, elements: CanvasElement[]) => void;
+  ai: GoogleGenAI;
 }
 
-type ActionType = 'move' | 'rotate' | 'none' | 'skew-x' | 'skew-y' |
+type ActionType = 'move' | 'rotate' | 'none' |
   'resize-top-left' | 'resize-top-right' |
-  'resize-bottom-left' | 'resize-bottom-right';
+  'resize-bottom-left' | 'resize-bottom-right' |
+  'resize-top' | 'resize-bottom' | 'resize-left' | 'resize-right';
+
 
 interface ActionState {
     type: ActionType;
@@ -74,7 +78,7 @@ const getStyleForIndex = (index: number, el: TextProperties): CompleteTextStyle 
 
 
 // --- MAIN COMPONENT ---
-const AddTextModal: React.FC<AddTextModalProps> = ({ isOpen, onClose, imageSrc, initialElements, onApply }) => {
+const CanvasEditorModal: React.FC<CanvasEditorModalProps> = ({ isOpen, onClose, imageSrc, initialElements, onApply, ai }) => {
     const [elements, setElements] = useState<CanvasElement[]>([]);
     const [selectedElementId, setSelectedElementId] = useState<number | null>(null);
     const [isImageReady, setIsImageReady] = useState(false);
@@ -101,7 +105,10 @@ const AddTextModal: React.FC<AddTextModalProps> = ({ isOpen, onClose, imageSrc, 
         return elements.find(el => el.id === selectedElementId) || null;
     }, [elements, selectedElementId]);
 
-    const getCtx = useCallback(() => canvasRef.current?.getContext('2d'), []);
+    const getCtx = useCallback(() => {
+        const canvas = canvasRef.current;
+        return canvas ? canvas.getContext('2d') : null;
+    }, []);
 
     const getFontString = (style: Omit<CompleteTextStyle, 'color' | 'isUnderline'>) => {
         return `${style.isItalic ? 'italic ' : ''}${style.isBold ? 'bold ' : ''}${style.fontSize}px ${style.fontFamily}`;
@@ -109,9 +116,6 @@ const AddTextModal: React.FC<AddTextModalProps> = ({ isOpen, onClose, imageSrc, 
     
     const getWrappedLines = useCallback((ctx: CanvasRenderingContext2D, textEl: TextProperties): { line: string; startIndex: number }[] => {
         const { text, width: maxWidth } = textEl;
-        // This is a simplified wrapping algorithm. It uses the default font style for measuring, which is an approximation
-        // if the text has multiple styles. A fully style-aware wrapping algorithm is much more complex.
-        // However, this is sufficient for the height and rendering calculations which ARE style-aware.
         ctx.font = getFontString(textEl);
         const paragraphs = text.split('\n');
         const allLines: { line: string; startIndex: number }[] = [];
@@ -129,7 +133,6 @@ const AddTextModal: React.FC<AddTextModalProps> = ({ isOpen, onClose, imageSrc, 
 
             for (const word of words) {
                 const testLine = currentLine === '' ? word : `${currentLine} ${word}`;
-                // Use the base style for wrapping measurement.
                 ctx.font = getFontString(getStyleForIndex(lineStartIndex, textEl));
                 if (ctx.measureText(testLine).width > maxWidth && currentLine !== '') {
                     allLines.push({ line: currentLine, startIndex: lineStartIndex });
@@ -147,13 +150,11 @@ const AddTextModal: React.FC<AddTextModalProps> = ({ isOpen, onClose, imageSrc, 
     }, []);
 
     const getElementMetrics = useCallback((el: CanvasElement) => {
-        const hasWidth = 'width' in el;
-        const width = hasWidth ? el.width : 0;
+        const ctx = getCtx();
         let height: number;
         if (el.type === 'text') {
-            const ctx = getCtx();
             if (!ctx) { 
-                height = 0; 
+                height = el.fontSize; // Fallback if no context
             } else {
                 const linesInfo = getWrappedLines(ctx, el);
     
@@ -162,7 +163,6 @@ const AddTextModal: React.FC<AddTextModalProps> = ({ isOpen, onClose, imageSrc, 
                 } else {
                     let totalHeight = 0;
     
-                    // Calculate total height based on the max font size of each line
                     for (const lineInfo of linesInfo) {
                         let maxFontSizeInLine = 0;
                         if (lineInfo.line.length > 0) {
@@ -173,14 +173,12 @@ const AddTextModal: React.FC<AddTextModalProps> = ({ isOpen, onClose, imageSrc, 
                                 }
                             }
                         } else {
-                            // For an empty line, use the style of the preceding character or the base style
                             const style = lineInfo.startIndex > 0 ? getStyleForIndex(lineInfo.startIndex - 1, el) : el;
                             maxFontSizeInLine = style.fontSize;
                         }
                         totalHeight += maxFontSizeInLine * el.lineHeight;
                     }
     
-                    // Correct for the last line not having trailing inter-line spacing
                     const lastLineInfo = linesInfo[linesInfo.length - 1];
                     let maxFontSizeInLastLine = 0;
                     if (lastLineInfo.line.length > 0) {
@@ -201,6 +199,7 @@ const AddTextModal: React.FC<AddTextModalProps> = ({ isOpen, onClose, imageSrc, 
         } else {
             height = el.height;
         }
+        const width = el.width;
         const centerX = el.x + width / 2;
         const centerY = el.y + height / 2;
         return { x: el.x, y: el.y, width, height, centerX, centerY };
@@ -285,7 +284,6 @@ const AddTextModal: React.FC<AddTextModalProps> = ({ isOpen, onClose, imageSrc, 
         linesInfo.forEach((lineInfo, lineIndex) => {
             const { line, startIndex: lineStartIndex } = lineInfo;
 
-            // Calculate the height of the current line based on its max font size
             let maxFontSizeInLine = 0;
             for (let i = 0; i < line.length; i++) {
                 maxFontSizeInLine = Math.max(maxFontSizeInLine, getStyleForIndex(lineStartIndex + i, el).fontSize);
@@ -295,7 +293,6 @@ const AddTextModal: React.FC<AddTextModalProps> = ({ isOpen, onClose, imageSrc, 
             }
             const lineHeight = maxFontSizeInLine * el.lineHeight;
             
-            // Calculate Y position for the current line
             let lineY = -height / 2;
             for (let i = 0; i < lineIndex; i++) {
                 const prevLine = linesInfo[i];
@@ -329,7 +326,6 @@ const AddTextModal: React.FC<AddTextModalProps> = ({ isOpen, onClose, imageSrc, 
             else if (el.textAlign === 'right') currentX += width - totalLineWidth;
             
             let lineCharIndex = 0;
-            // First pass for selection highlight
             let tempX = currentX;
             for (const run of runs) {
                 for (let i = 0; i < run.text.length; i++) {
@@ -348,7 +344,6 @@ const AddTextModal: React.FC<AddTextModalProps> = ({ isOpen, onClose, imageSrc, 
                 lineCharIndex += run.text.length;
             }
 
-            // Second pass for text
             runs.forEach(run => {
                 ctx.font = getFontString(run.style); ctx.fillStyle = run.style.color; ctx.textBaseline = 'top';
                 if (el.strokeEnabled && el.strokeWidth > 0) {
@@ -368,7 +363,7 @@ const AddTextModal: React.FC<AddTextModalProps> = ({ isOpen, onClose, imageSrc, 
     }, [getElementMetrics, getWrappedLines, selection, selectedElementId]);
 
     const drawCanvas = useCallback(() => {
-        const canvas = canvasRef.current; const ctx = getCtx(); const image = imageRef.current;
+        const ctx = getCtx(); const image = imageRef.current; const canvas = canvasRef.current;
         if (!canvas || !ctx || !image || !isImageReady) return;
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
@@ -397,7 +392,7 @@ const AddTextModal: React.FC<AddTextModalProps> = ({ isOpen, onClose, imageSrc, 
                 // Corners
                 { x: -width / 2, y: -height / 2 }, { x: width / 2, y: -height / 2 },
                 { x: -width / 2, y: height / 2 }, { x: width / 2, y: height / 2 },
-                // Skew handles
+                // Sides
                 { x: 0, y: -height / 2 }, { x: 0, y: height / 2 },
                 { x: -width / 2, y: 0 }, { x: width / 2, y: 0 },
             ];
@@ -476,15 +471,7 @@ const AddTextModal: React.FC<AddTextModalProps> = ({ isOpen, onClose, imageSrc, 
         if (!ctx) return -1;
     
         const { centerX, centerY, width, height } = getElementMetrics(el);
-        const { skewX = 0, skewY = 0 } = el;
         const unrotatedPoint = rotatePoint(point, { x: centerX, y: centerY }, -el.rotation);
-        
-        const det = 1 - skewX * skewY;
-        if (det === 0) return -1;
-        const localX = unrotatedPoint.x - centerX;
-        const localY = unrotatedPoint.y - centerY;
-        const unskewedLocalX = (localX - skewX * localY) / det;
-        const unskewedLocalY = (-skewY * localX + localY) / det;
         
         const linesInfo = getWrappedLines(ctx, el);
         
@@ -502,7 +489,7 @@ const AddTextModal: React.FC<AddTextModalProps> = ({ isOpen, onClose, imageSrc, 
              }
             const lineHeight = maxFontSizeInLine * el.lineHeight;
 
-            if (unskewedLocalY >= cumulativeY && unskewedLocalY <= cumulativeY + lineHeight) {
+            if (unrotatedPoint.y >= cumulativeY && unrotatedPoint.y <= cumulativeY + lineHeight) {
                 let runs: { text: string, style: CompleteTextStyle }[] = [];
                 if (line.length > 0) {
                     let currentRun = { text: line[0], style: getStyleForIndex(lineStartIndex, el) };
@@ -517,24 +504,25 @@ const AddTextModal: React.FC<AddTextModalProps> = ({ isOpen, onClose, imageSrc, 
     
                 const totalLineWidth = runs.reduce((acc, run) => { ctx.font = getFontString(run.style); return acc + ctx.measureText(run.text).width; }, 0);
     
-                let currentX = -width / 2;
-                if (el.textAlign === 'center') currentX += (width - totalLineWidth) / 2;
-                else if (el.textAlign === 'right') currentX += width - totalLineWidth;
+                let currentX = unrotatedPoint.x - centerX;
+                if (el.textAlign === 'center') currentX -= (width - totalLineWidth) / 2;
+                else if (el.textAlign === 'right') currentX -= (width - totalLineWidth);
                 
+                let cumulativeWidth = -width/2;
                 let lineCharIndex = 0;
                 for (const run of runs) {
                     for (let i = 0; i < run.text.length; i++) {
                         ctx.font = getFontString(run.style);
                         const charWidth = ctx.measureText(run.text[i]).width;
-                        if (unskewedLocalX >= currentX && unskewedLocalX < currentX + charWidth) {
-                            return lineStartIndex + lineCharIndex + i + (unskewedLocalX > currentX + charWidth / 2 ? 1 : 0);
+                        if (unrotatedPoint.x - centerX >= cumulativeWidth && unrotatedPoint.x - centerX < cumulativeWidth + charWidth) {
+                            return lineStartIndex + lineCharIndex + i + (unrotatedPoint.x - centerX > cumulativeWidth + charWidth / 2 ? 1 : 0);
                         }
-                        currentX += charWidth;
+                        cumulativeWidth += charWidth;
                     }
                     lineCharIndex += run.text.length;
                 }
-                if (unskewedLocalX >= currentX) return lineStartIndex + line.length;
-                if (unskewedLocalX < -width / 2) return lineStartIndex;
+                if (unrotatedPoint.x - centerX >= cumulativeWidth) return lineStartIndex + line.length;
+                if (unrotatedPoint.x - centerX < -width / 2) return lineStartIndex;
             }
             cumulativeY += lineHeight;
         }
@@ -554,14 +542,18 @@ const AddTextModal: React.FC<AddTextModalProps> = ({ isOpen, onClose, imageSrc, 
 
             if (Math.abs(localX) < handleSize && Math.abs(localY + halfH + 20) < handleSize) return {type: 'rotate', element: el};
             
+            // Corners
             if (Math.abs(localX + halfW) < handleSize && Math.abs(localY + halfH) < handleSize) return {type: 'resize-top-left', element: el};
             if (Math.abs(localX - halfW) < handleSize && Math.abs(localY + halfH) < handleSize) return {type: 'resize-top-right', element: el};
             if (Math.abs(localX + halfW) < handleSize && Math.abs(localY - halfH) < handleSize) return {type: 'resize-bottom-left', element: el};
             if (Math.abs(localX - halfW) < handleSize && Math.abs(localY - halfH) < handleSize) return {type: 'resize-bottom-right', element: el};
 
-            if (Math.abs(localX) < handleSize && (Math.abs(localY + halfH) < handleSize || Math.abs(localY - halfH) < handleSize)) return {type: 'skew-y', element: el};
-            if (Math.abs(localY) < handleSize && (Math.abs(localX + halfW) < handleSize || Math.abs(localX - halfW) < handleSize)) return {type: 'skew-x', element: el};
-
+            // Sides
+            if (Math.abs(localX) < handleSize && Math.abs(localY + halfH) < handleSize) return {type: 'resize-top', element: el};
+            if (Math.abs(localX) < handleSize && Math.abs(localY - halfH) < handleSize) return {type: 'resize-bottom', element: el};
+            if (Math.abs(localY) < handleSize && Math.abs(localX + halfW) < handleSize) return {type: 'resize-left', element: el};
+            if (Math.abs(localY) < handleSize && Math.abs(localX - halfW) < handleSize) return {type: 'resize-right', element: el};
+            
             if (unrotatedMousePos.x >= centerX - halfW && unrotatedMousePos.x <= centerX + halfW && unrotatedMousePos.y >= centerY - halfH && unrotatedMousePos.y <= centerY + halfH) return {type: 'move', element: el};
         }
         return {type: 'none', element: null};
@@ -687,43 +679,57 @@ const AddTextModal: React.FC<AddTextModalProps> = ({ isOpen, onClose, imageSrc, 
                 const angleDiff = (currentAngle - startAngle) * 180 / Math.PI;
                 return { ...el, rotation: (initialElement.rotation + angleDiff + 360) % 360 };
             }
-            if (type === 'skew-x') {
-                const skewFactor = 0.005;
-                return { ...el, skewX: initialElement.skewX + localDx * skewFactor };
-            }
-            if (type === 'skew-y') {
-                const skewFactor = 0.005;
-                return { ...el, skewY: initialElement.skewY - localDy * skewFactor };
-            }
 
             // --- RESIZE LOGIC ---
             const resizeText = (textEl: TextProperties) => {
-                if (isShiftHeld) { // Proportional
-                    const metrics = getElementMetrics(initialElement);
-                    const center = { x: metrics.centerX, y: metrics.centerY };
-                    const initialDist = Math.hypot(initialMousePos.x - center.x, initialMousePos.y - center.y);
-                    const currentDist = Math.hypot(mousePos.x - center.x, mousePos.y - center.y);
+                const initialMetrics = getElementMetrics(initialElement as TextProperties);
+                const initialHeight = initialMetrics.height;
+                const oldCenter = { x: initialMetrics.centerX, y: initialMetrics.centerY };
+
+                // Corner resize (proportional)
+                if (type.includes('left') && type.includes('top') || type.includes('right') && type.includes('bottom')) {
+                    const initialDist = Math.hypot(initialMousePos.x - oldCenter.x, initialMousePos.y - oldCenter.y);
+                    const currentDist = Math.hypot(mousePos.x - oldCenter.x, mousePos.y - oldCenter.y);
                     if (initialDist === 0) return textEl;
                     const scale = currentDist / initialDist;
                     const newWidth = Math.max(20, initialElement.width * scale);
-                    const newFontSize = Math.max(8, initialElement.fontSize * scale);
-                    const newMetrics = getElementMetrics({ ...initialElement as TextProperties, width: newWidth, fontSize: newFontSize });
-                    return { ...textEl, width: newWidth, fontSize: newFontSize, x: center.x - newWidth / 2, y: center.y - newMetrics.height / 2 };
-                } else { // Freeform
+                    const newFontSize = Math.max(8, (initialElement as TextProperties).fontSize * scale);
+                    const newMetrics = getElementMetrics({ ...textEl, width: newWidth, fontSize: newFontSize });
+                    return { ...textEl, width: newWidth, fontSize: newFontSize, x: oldCenter.x - newWidth / 2, y: oldCenter.y - newMetrics.height / 2 };
+                } 
+                // Side/Top/Bottom resize (non-proportional)
+                else {
                     let newWidth = textEl.width;
+                    let newFontSize = textEl.fontSize;
                     if (type.includes('right')) newWidth = Math.max(20, initialElement.width + localDx);
                     if (type.includes('left')) newWidth = Math.max(20, initialElement.width - localDx);
+
+                    if (type.includes('bottom')) {
+                        const heightChange = localDy;
+                        if (initialHeight > 0) {
+                            const scaleY = (initialHeight + heightChange) / initialHeight;
+                            newFontSize = Math.max(8, (initialElement as TextProperties).fontSize * scaleY);
+                        }
+                    }
+                    if (type.includes('top')) {
+                        const heightChange = -localDy;
+                         if (initialHeight > 0) {
+                            const scaleY = (initialHeight + heightChange) / initialHeight;
+                            newFontSize = Math.max(8, (initialElement as TextProperties).fontSize * scaleY);
+                        }
+                    }
                     
+                    const tempNewMetrics = getElementMetrics({ ...textEl, width: newWidth, fontSize: newFontSize });
                     const dw = newWidth - initialElement.width;
-                    const initialMetrics = getElementMetrics(initialElement);
-                    let shiftX = 0;
+                    const dh = tempNewMetrics.height - initialHeight;
+                    
+                    let shiftX = 0; let shiftY = 0;
                     if (type.includes('right')) shiftX += dw / 2; if (type.includes('left')) shiftX -= dw / 2;
+                    if (type.includes('bottom')) shiftY += dh / 2; if (type.includes('top')) shiftY -= dh / 2;
                     
-                    const rotatedShiftX = shiftX * cos; const rotatedShiftY = shiftX * sin;
-                    const oldCenter = { x: initialMetrics.centerX, y: initialMetrics.centerY };
+                    const rotatedShiftX = shiftX * cos - shiftY * sin; const rotatedShiftY = shiftX * sin + shiftY * cos;
                     const newCenter = { x: oldCenter.x + rotatedShiftX, y: oldCenter.y + rotatedShiftY };
-                    
-                    return { ...textEl, width: newWidth, x: newCenter.x - newWidth / 2, y: newCenter.y - initialMetrics.height / 2 };
+                    return { ...textEl, width: newWidth, fontSize: newFontSize, x: newCenter.x - newWidth / 2, y: newCenter.y - tempNewMetrics.height / 2 };
                 }
             };
             
@@ -816,8 +822,7 @@ const AddTextModal: React.FC<AddTextModalProps> = ({ isOpen, onClose, imageSrc, 
                     imageElement: img,
                     x: (canvas.width - newWidth) / 2, y: (canvas.height - newHeight) / 2,
                     width: newWidth, height: newHeight, rotation: 0, skewX: 0, skewY: 0, aspectRatio: imgAspectRatio,
-// FIX: Add missing shadow and stroke properties to the ImageProperties object to align with the type definition.
-shadowEnabled: false, shadowColor: '#000000', shadowBlur: 0, shadowOffsetX: 0, shadowOffsetY: 0,
+                    shadowEnabled: false, shadowColor: '#000000', shadowBlur: 0, shadowOffsetX: 0, shadowOffsetY: 0,
                     strokeEnabled: false, strokeColor: '#000000', strokeWidth: 0
                 };
                 setElements(els => [...els, newImage]); setSelectedElementId(newImage.id); setActiveTool('select');
@@ -986,38 +991,10 @@ shadowEnabled: false, shadowColor: '#000000', shadowBlur: 0, shadowOffsetX: 0, s
                                         </div>
                                     </div>
                                 )}
-
-                                {/* DRAWING TOOLS SECTION */}
-                                <div className="space-y-3 pb-4 border-b">
-                                    <h4 className="font-semibold text-base text-gray-800">2. Draw or Erase</h4>
-                                    <div className="grid grid-cols-2 gap-2">
-                                        <button onClick={() => { setActiveTool('brush'); setSelectedElementId(null); }} className={`p-2 rounded-md flex items-center justify-center gap-2 border-2 transition-colors ${activeTool === 'brush' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white hover:bg-gray-100 border-gray-300'}`}><PaintBrushIcon className="w-5 h-5" /> Brush</button>
-                                        <button onClick={() => { setActiveTool('eraser'); setSelectedElementId(null); }} className={`p-2 rounded-md flex items-center justify-center gap-2 border-2 transition-colors ${activeTool === 'eraser' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white hover:bg-gray-100 border-gray-300'}`}><EraserIcon className="w-5 h-5" /> Eraser</button>
-                                    </div>
-                                    {(activeTool === 'brush' || activeTool === 'eraser') && (
-                                        <div className="p-2 border rounded-md bg-white space-y-3">
-                                            <div>
-                                                <label htmlFor="brush-size" className="font-medium">Size: {brushSize}px</label>
-                                                <input id="brush-size" type="range" min="1" max="100" value={brushSize} onChange={(e) => setBrushSize(Number(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-600" />
-                                            </div>
-                                            {activeTool === 'brush' && (
-                                                <div>
-                                                    <label className="font-medium">Color</label>
-                                                    <input type="color" value={brushColor} onChange={(e) => setBrushColor(e.target.value)} className="w-full h-10 p-1 border rounded-md"/>
-                                                </div>
-                                            )}
-                                            <button onClick={clearDrawingCanvas} className="w-full text-center p-2 rounded-md bg-red-100 text-red-700 hover:bg-red-200 transition-colors text-xs">Clear All Drawings</button>
-                                        </div>
-                                    )}
-                                    {activeTool !== 'select' ?
-                                      <button onClick={() => setActiveTool('select')} className="w-full text-center p-2 rounded-md bg-gray-200 text-gray-800 hover:bg-gray-300 transition-colors font-semibold text-xs">Back to Select Tool</button>
-                                      : null
-                                    }
-                                </div>
                                 
                                 {/* EDIT SELECTED SECTION */}
                                 <div className="flex-grow flex flex-col min-h-0">
-                                    <h4 className="font-semibold text-base text-gray-800 mb-2">3. Edit Selected Layer</h4>
+                                    <h4 className="font-semibold text-base text-gray-800 mb-2">2. Edit Selected Layer</h4>
                                     <div className="flex-grow">
                                         {selectedElement ? (
                                             <div className="flex flex-col h-full gap-4">
@@ -1028,6 +1005,10 @@ shadowEnabled: false, shadowColor: '#000000', shadowBlur: 0, shadowOffsetX: 0, s
                                                         <div className="grid grid-cols-2 gap-2">
                                                             <div><label className="font-medium">Font Size</label><input type="number" value={Math.round(getStyleForIndex(selection.start, selectedElement).fontSize)} onChange={e => handleFontSizeChange(parseInt(e.target.value))} className="w-full p-2 border rounded-md" /></div>
                                                             <div><label className="font-medium">Color</label><input type="color" value={getStyleForIndex(selection.start, selectedElement).color} onChange={e => handleColorChange(e.target.value)} className="w-full h-10 p-1 border rounded-md"/></div>
+                                                        </div>
+                                                        <div>
+                                                            <label className="font-medium">Line Height: {selectedElement.lineHeight.toFixed(1)}</label>
+                                                            <input type="range" min="0.5" max="3" step="0.1" value={selectedElement.lineHeight} onChange={e => updateSelectedElement({ lineHeight: parseFloat(e.target.value)})} className="w-full accent-indigo-600" />
                                                         </div>
                                                         <div><label className="font-medium">Font</label><select value={selectedElement.fontFamily} onChange={e => updateSelectedElement({ fontFamily: e.target.value })} className="w-full p-2 border rounded-md">{FONT_FACES.map(f => <option key={f} value={f}>{f}</option>)}</select></div>
                                                         <div className="flex items-center gap-1 border p-1 rounded-md bg-white">
@@ -1100,4 +1081,4 @@ shadowEnabled: false, shadowColor: '#000000', shadowBlur: 0, shadowOffsetX: 0, s
     );
 };
 
-export default AddTextModal;
+export default CanvasEditorModal;

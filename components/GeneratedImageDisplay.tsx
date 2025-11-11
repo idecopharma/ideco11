@@ -1,5 +1,6 @@
+
 import React from 'react';
-import { ImageIcon, PencilIcon, TextIcon, ShareIcon, VideoCameraIcon } from './Icons';
+import { ImageIcon, PencilIcon, ShareIcon, VideoCameraIcon, PaintBrushIcon } from './Icons';
 
 interface GeneratedImageDisplayProps {
   isLoading: boolean;
@@ -7,10 +8,10 @@ interface GeneratedImageDisplayProps {
   error: string | null;
   onEditImage: () => void;
   onEditText: () => void;
-  onAddText: () => void;
   onShare: () => void;
   onGenerateVideo: () => void;
   onDoubleClick: () => void;
+  onOpenCanvasEditor: () => void;
 }
 
 const GeneratedImageDisplay: React.FC<GeneratedImageDisplayProps> = ({
@@ -19,10 +20,10 @@ const GeneratedImageDisplay: React.FC<GeneratedImageDisplayProps> = ({
   error,
   onEditImage,
   onEditText,
-  onAddText,
   onShare,
   onGenerateVideo,
-  onDoubleClick
+  onDoubleClick,
+  onOpenCanvasEditor,
 }) => {
   if (isLoading) {
     return (
@@ -77,13 +78,13 @@ const GeneratedImageDisplay: React.FC<GeneratedImageDisplayProps> = ({
                     <PencilIcon className="w-5 h-5" />
                     Sửa Chữ
                 </button>
-                <button
-                    onClick={onAddText}
+                 <button
+                    onClick={onOpenCanvasEditor}
                     className="inline-flex items-center gap-2 bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition-colors"
-                    title="Thêm Chữ"
+                    title="Mở trình thiết kế chuyên nghiệp"
                 >
-                    <TextIcon className="w-5 h-5" />
-                    Thêm Chữ
+                    <PaintBrushIcon className="w-5 h-5" />
+                    Thiết Kế
                 </button>
                  <button
                     onClick={onGenerateVideo}

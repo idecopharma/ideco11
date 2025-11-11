@@ -51,6 +51,9 @@ export interface ImageProperties {
     x: number; y: number; width: number; height: number;
     rotation: number; aspectRatio: number;
     skewX: number; skewY: number;
+    // FIX: Add shadow and stroke properties to ImageProperties. This resolves a TypeScript error where these properties were used on an ImageProperties object.
+    shadowEnabled: boolean; shadowColor: string; shadowBlur: number; shadowOffsetX: number; shadowOffsetY: number;
+    strokeEnabled: boolean; strokeColor: string; strokeWidth: number;
 }
 
 export interface BannerProperties {
