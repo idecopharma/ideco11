@@ -1,5 +1,5 @@
 {
-  "name": "IDECO PHAT TRIEN",
-  "description": "Ứng dụng tạo ảnh quảng cáo bằng cách kết hợp hình ảnh sản phẩm và các mẫu mô tả có sẵn hoặc tùy chỉnh.",
+  "name": "PharmaPoster AI",
+  "description": "Professional pharmaceutical poster generator using Gemini 3 Pro (Banana Pro) for image creation and prompt optimization.",
   "requestFramePermissions": []
 }

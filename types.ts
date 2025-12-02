@@ -1,72 +1,27 @@
 
-export interface UploadedFile {
+export interface ProductData {
+  id: number;
   name: string;
-  type: string;
-  size: number;
-  base64: string;
-  isProcessing?: boolean;
+  dosage: string;
+  usage: string;
+  isETC: boolean;
+  listPrice: string;
+  idecoPrice: string;
+  manufacturer: string;
+  description: string;
+  imageBase64?: string;
+  mimeType?: string;
+  aspectRatio: 'vertical' | 'horizontal'; // New field for layout selection
 }
 
-export interface PromptTemplate {
-  name: string;
+export interface GeneratedResult {
+  id: number;
   prompt: string;
-  keywords?: string[];
+  status: 'pending' | 'loading' | 'success' | 'error';
 }
 
-// --- CANVAS ELEMENT TYPES (for AddTextModal) ---
-
-interface ColorRange {
-    start: number; // character index
-    end: number;
-    color: string;
+export enum AppState {
+  IDLE,
+  PROCESSING,
+  COMPLETE
 }
-
-interface FontSizeRange {
-    start: number;
-    end: number;
-    fontSize: number;
-}
-
-export interface TextProperties {
-    type: 'text';
-    id: number;
-    text: string;
-    x: number; y: number; width: number;
-    fontSize: number; fontFamily: string; color: string;
-    colorRanges: ColorRange[]; fontSizeRanges: FontSizeRange[];
-    isBold: boolean; isItalic: boolean; isUnderline: boolean;
-    textAlign: 'left' | 'center' | 'right';
-    rotation: number;
-    skewX: number; skewY: number;
-    lineHeight: number;
-    shadowEnabled: boolean; shadowColor: string; shadowBlur: number; shadowOffsetX: number; shadowOffsetY: number;
-    strokeEnabled: boolean; strokeColor: string; strokeWidth: number;
-}
-
-export interface ImageProperties {
-    type: 'image';
-    id: number;
-    src: string; // The base64 data URL
-    imageElement?: HTMLImageElement; // The loaded image object, transient and optional
-    x: number; y: number; width: number; height: number;
-    rotation: number; aspectRatio: number;
-    skewX: number; skewY: number;
-    // FIX: Add shadow and stroke properties to ImageProperties. This resolves a TypeScript error where these properties were used on an ImageProperties object.
-    shadowEnabled: boolean; shadowColor: string; shadowBlur: number; shadowOffsetX: number; shadowOffsetY: number;
-    strokeEnabled: boolean; strokeColor: string; strokeWidth: number;
-}
-
-export interface BannerProperties {
-    type: 'banner';
-    id: number;
-    shape: 'rectangle' | 'ellipse' | 'diamond';
-    x: number; y: number; width: number; height: number;
-    rotation: number;
-    skewX: number; skewY: number;
-    backgroundColor: string;
-    shadowEnabled: boolean; shadowColor: string; shadowBlur: number; shadowOffsetX: number; shadowOffsetY: number;
-    strokeEnabled: boolean; strokeColor: string; strokeWidth: number;
-}
-
-
-export type CanvasElement = TextProperties | ImageProperties | BannerProperties;
