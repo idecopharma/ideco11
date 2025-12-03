@@ -53,7 +53,10 @@ export const generateOptimizedPrompt = async (data: ProductData): Promise<string
        You MUST command the model to render text with specific styles. The goal is to sell the product immediately:
        
        - **Title 1 (THE HERO - Product Name):** "${data.name} ${data.dosage}"
-         -> **INSTRUCTION:** Render this text in **MASSIVE, LUXURIOUS, 3D TYPOGRAPHY**. Use a modern, thick font with a glossy, metallic, or crystal finish. It needs to look expensive and impressive. Add a subtle glow or shadow to make it pop off the background.
+         -> **INSTRUCTION:** ${data.imageBase64 ? 
+            `**BRAND IDENTITY MATCH:** Analyze the uploaded product image carefully. Identify the **dominant color** and **font style** (e.g., Serif, Sans, Script) of the product name printed on the actual packaging. RENDER Title 1 in **Massive 3D Typography** using that **EXACT COLOR** and style. (e.g., If the box text is Navy Blue, describe this title as 'Glossy Navy Blue 3D Text'; if Gold Foil, describe as 'Gold Foil 3D Text').` 
+            : 
+            `Render this text in **MASSIVE, LUXURIOUS, 3D TYPOGRAPHY**. Use a modern, thick font with a glossy, metallic, or crystal finish. It needs to look expensive and impressive.`}
        
        - **Subtitle:** "${data.usage}"
          -> **INSTRUCTION:** Clean, crisp sans-serif font. Readable and professional.

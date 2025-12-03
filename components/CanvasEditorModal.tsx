@@ -471,7 +471,15 @@ const CanvasEditorModal: React.FC<CanvasEditorModalProps> = ({ isOpen, onClose, 
         if (!ctx) return -1;
     
         const { centerX, centerY, width, height } = getElementMetrics(el);
+        const { skewX = 0, skewY = 0 } = el;
         const unrotatedPoint = rotatePoint(point, { x: centerX, y: centerY }, -el.rotation);
+        
+        const det = 1 - skewX * skewY;
+        if (det === 0) return -1;
+        const localX = unrotatedPoint.x - centerX;
+        const localY = unrotatedPoint.y - centerY;
+        const unskewedLocalX = (localX - skewX * localY) / det;
+        const unskewedLocalY = (-skewY * localX + localY) / det;
         
         const linesInfo = getWrappedLines(ctx, el);
         
@@ -489,7 +497,7 @@ const CanvasEditorModal: React.FC<CanvasEditorModalProps> = ({ isOpen, onClose, 
              }
             const lineHeight = maxFontSizeInLine * el.lineHeight;
 
-            if (unrotatedPoint.y >= cumulativeY && unrotatedPoint.y <= cumulativeY + lineHeight) {
+            if (unskewedLocalY >= cumulativeY && unskewedLocalY <= cumulativeY + lineHeight) {
                 let runs: { text: string, style: CompleteTextStyle }[] = [];
                 if (line.length > 0) {
                     let currentRun = { text: line[0], style: getStyleForIndex(lineStartIndex, el) };
@@ -504,25 +512,24 @@ const CanvasEditorModal: React.FC<CanvasEditorModalProps> = ({ isOpen, onClose, 
     
                 const totalLineWidth = runs.reduce((acc, run) => { ctx.font = getFontString(run.style); return acc + ctx.measureText(run.text).width; }, 0);
     
-                let currentX = unrotatedPoint.x - centerX;
-                if (el.textAlign === 'center') currentX -= (width - totalLineWidth) / 2;
-                else if (el.textAlign === 'right') currentX -= (width - totalLineWidth);
+                let currentX = -width / 2;
+                if (el.textAlign === 'center') currentX += (width - totalLineWidth) / 2;
+                else if (el.textAlign === 'right') currentX += width - totalLineWidth;
                 
-                let cumulativeWidth = -width/2;
                 let lineCharIndex = 0;
                 for (const run of runs) {
                     for (let i = 0; i < run.text.length; i++) {
                         ctx.font = getFontString(run.style);
                         const charWidth = ctx.measureText(run.text[i]).width;
-                        if (unrotatedPoint.x - centerX >= cumulativeWidth && unrotatedPoint.x - centerX < cumulativeWidth + charWidth) {
-                            return lineStartIndex + lineCharIndex + i + (unrotatedPoint.x - centerX > cumulativeWidth + charWidth / 2 ? 1 : 0);
+                        if (unskewedLocalX >= currentX && unskewedLocalX < currentX + charWidth) {
+                            return lineStartIndex + lineCharIndex + i + (unskewedLocalX > currentX + charWidth / 2 ? 1 : 0);
                         }
-                        cumulativeWidth += charWidth;
+                        currentX += charWidth;
                     }
                     lineCharIndex += run.text.length;
                 }
-                if (unrotatedPoint.x - centerX >= cumulativeWidth) return lineStartIndex + line.length;
-                if (unrotatedPoint.x - centerX < -width / 2) return lineStartIndex;
+                if (unskewedLocalX >= currentX) return lineStartIndex + line.length;
+                if (unskewedLocalX < -width / 2) return lineStartIndex;
             }
             cumulativeY += lineHeight;
         }
@@ -542,14 +549,12 @@ const CanvasEditorModal: React.FC<CanvasEditorModalProps> = ({ isOpen, onClose, 
 
             if (Math.abs(localX) < handleSize && Math.abs(localY + halfH + 20) < handleSize) return {type: 'rotate', element: el};
             
-            // Corners
             if (Math.abs(localX + halfW) < handleSize && Math.abs(localY + halfH) < handleSize) return {type: 'resize-top-left', element: el};
             if (Math.abs(localX - halfW) < handleSize && Math.abs(localY + halfH) < handleSize) return {type: 'resize-top-right', element: el};
             if (Math.abs(localX + halfW) < handleSize && Math.abs(localY - halfH) < handleSize) return {type: 'resize-bottom-left', element: el};
             if (Math.abs(localX - halfW) < handleSize && Math.abs(localY - halfH) < handleSize) return {type: 'resize-bottom-right', element: el};
 
-            // Sides
-            if (Math.abs(localX) < handleSize && Math.abs(localY + halfH) < handleSize) return {type: 'resize-top', element: el};
+            if (Math.abs(localX) < handleSize && (Math.abs(localY + halfH) < handleSize || Math.abs(localY - halfH) < handleSize)) return {type: 'resize-top', element: el};
             if (Math.abs(localX) < handleSize && Math.abs(localY - halfH) < handleSize) return {type: 'resize-bottom', element: el};
             if (Math.abs(localY) < handleSize && Math.abs(localX + halfW) < handleSize) return {type: 'resize-left', element: el};
             if (Math.abs(localY) < handleSize && Math.abs(localX - halfW) < handleSize) return {type: 'resize-right', element: el};
@@ -785,7 +790,8 @@ const CanvasEditorModal: React.FC<CanvasEditorModalProps> = ({ isOpen, onClose, 
         const newElement: TextProperties = {
             type: 'text', id: Date.now(), text: 'Your Text Here',
             x: (canvas.width - width) / 2, y: canvas.height / 2 - fontSize,
-            width, fontSize, fontFamily: 'Arial', color: '#000000', colorRanges: [], fontSizeRanges: [],
+            width, height: fontSize,
+            fontSize, fontFamily: 'Arial', color: '#000000', colorRanges: [], fontSizeRanges: [],
             isBold: false, isItalic: false, isUnderline: false,
             textAlign: 'center', rotation: 0, skewX: 0, skewY: 0, lineHeight: 1.2, shadowEnabled: false, shadowColor: '#000000',
             shadowBlur: 5, shadowOffsetX: 5, shadowOffsetY: 5, strokeEnabled: false, strokeColor: '#ffffff', strokeWidth: 2
@@ -822,7 +828,8 @@ const CanvasEditorModal: React.FC<CanvasEditorModalProps> = ({ isOpen, onClose, 
                     imageElement: img,
                     x: (canvas.width - newWidth) / 2, y: (canvas.height - newHeight) / 2,
                     width: newWidth, height: newHeight, rotation: 0, skewX: 0, skewY: 0, aspectRatio: imgAspectRatio,
-                    shadowEnabled: false, shadowColor: '#000000', shadowBlur: 0, shadowOffsetX: 0, shadowOffsetY: 0,
+// FIX: Add missing shadow and stroke properties to the ImageProperties object to align with the type definition.
+shadowEnabled: false, shadowColor: '#000000', shadowBlur: 0, shadowOffsetX: 0, shadowOffsetY: 0,
                     strokeEnabled: false, strokeColor: '#000000', strokeWidth: 0
                 };
                 setElements(els => [...els, newImage]); setSelectedElementId(newImage.id); setActiveTool('select');

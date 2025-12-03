@@ -779,7 +779,8 @@ const AddTextModal: React.FC<AddTextModalProps> = ({ isOpen, onClose, imageSrc, 
         const newElement: TextProperties = {
             type: 'text', id: Date.now(), text: 'Your Text Here',
             x: (canvas.width - width) / 2, y: canvas.height / 2 - fontSize,
-            width, fontSize, fontFamily: 'Arial', color: '#000000', colorRanges: [], fontSizeRanges: [],
+            width, height: fontSize,
+            fontSize, fontFamily: 'Arial', color: '#000000', colorRanges: [], fontSizeRanges: [],
             isBold: false, isItalic: false, isUnderline: false,
             textAlign: 'center', rotation: 0, skewX: 0, skewY: 0, lineHeight: 1.2, shadowEnabled: false, shadowColor: '#000000',
             shadowBlur: 5, shadowOffsetX: 5, shadowOffsetY: 5, strokeEnabled: false, strokeColor: '#ffffff', strokeWidth: 2
@@ -1028,6 +1029,10 @@ shadowEnabled: false, shadowColor: '#000000', shadowBlur: 0, shadowOffsetX: 0, s
                                                         <div className="grid grid-cols-2 gap-2">
                                                             <div><label className="font-medium">Font Size</label><input type="number" value={Math.round(getStyleForIndex(selection.start, selectedElement).fontSize)} onChange={e => handleFontSizeChange(parseInt(e.target.value))} className="w-full p-2 border rounded-md" /></div>
                                                             <div><label className="font-medium">Color</label><input type="color" value={getStyleForIndex(selection.start, selectedElement).color} onChange={e => handleColorChange(e.target.value)} className="w-full h-10 p-1 border rounded-md"/></div>
+                                                        </div>
+                                                        <div>
+                                                            <label className="font-medium">Line Height: {selectedElement.lineHeight.toFixed(1)}</label>
+                                                            <input type="range" min="0.5" max="3" step="0.1" value={selectedElement.lineHeight} onChange={e => updateSelectedElement({ lineHeight: parseFloat(e.target.value)})} className="w-full accent-indigo-600" />
                                                         </div>
                                                         <div><label className="font-medium">Font</label><select value={selectedElement.fontFamily} onChange={e => updateSelectedElement({ fontFamily: e.target.value })} className="w-full p-2 border rounded-md">{FONT_FACES.map(f => <option key={f} value={f}>{f}</option>)}</select></div>
                                                         <div className="flex items-center gap-1 border p-1 rounded-md bg-white">
