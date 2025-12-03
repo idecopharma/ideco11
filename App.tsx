@@ -3,9 +3,10 @@ import React, { useState } from 'react';
 import { ProductForm } from './components/ProductForm';
 import { ResultDisplay } from './components/ResultDisplay';
 import { ExternalToolModal } from './components/ExternalToolModal';
+import { ExcelImportModal } from './components/ExcelImportModal'; // Import new modal
 import { ProductData, GeneratedResult, AppState } from './types';
 import { generateOptimizedPrompt } from './services/geminiService';
-import { PenTool, BrainCircuit, Sparkles, Bot } from 'lucide-react';
+import { PenTool, BrainCircuit, Sparkles, Bot, Table } from 'lucide-react'; // Import Table icon
 
 // Initial Empty Product
 const createEmptyProduct = (id: number): ProductData => ({
@@ -45,6 +46,9 @@ const App: React.FC = () => {
     isOpen: false,
     type: null
   });
+  
+  // Excel Modal State
+  const [excelModalOpen, setExcelModalOpen] = useState(false);
 
   const handleFieldChange = (id: number, field: keyof ProductData, value: string | boolean) => {
     setProducts(prev => prev.map(p => p.id === id ? { ...p, [field]: value } : p));
@@ -108,6 +112,24 @@ const App: React.FC = () => {
     setAppState(AppState.COMPLETE);
   };
 
+  const handleExcelImport = (importedProducts: ProductData[]) => {
+    // Merge imported products into the first available slots or overwrite
+    setProducts(prev => {
+        const newProducts = [...prev];
+        importedProducts.forEach((imp, index) => {
+            if (index < 3) {
+                // Keep existing ID, overwrite data
+                newProducts[index] = {
+                    ...createEmptyProduct(index + 1), // Reset first to clear old data
+                    ...imp,
+                    id: index + 1 // Ensure ID stays correct
+                };
+            }
+        });
+        return newProducts;
+    });
+  };
+
   const openTool = (type: 'gen' | 'mind') => {
     setExternalTool({ isOpen: true, type });
   };
@@ -138,6 +160,13 @@ const App: React.FC = () => {
 
           {/* Right Side Tools */}
           <div className="flex gap-3">
+             <button
+              onClick={() => setExcelModalOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-white text-emerald-700 font-semibold rounded-lg shadow-sm border border-emerald-200 hover:bg-emerald-50 hover:border-emerald-300 transition-all active:scale-95"
+            >
+              <Table className="w-5 h-5" />
+              <span>Nhập Excel</span>
+            </button>
             <button
               onClick={() => openTool('mind')}
               className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-semibold rounded-lg shadow-md hover:shadow-lg transition-all active:scale-95"
@@ -183,6 +212,13 @@ const App: React.FC = () => {
         url={externalTool.type === 'gen' ? 'https://lmarena.ai/' : 'https://geminigen.ai'}
         title={externalTool.type === 'gen' ? 'LM Arena' : 'GeminiGen AI'}
         icon={externalTool.type === 'gen' ? <Bot className="w-5 h-5"/> : <BrainCircuit className="w-5 h-5"/>}
+      />
+      
+      {/* Excel Import Modal */}
+      <ExcelImportModal 
+        isOpen={excelModalOpen}
+        onClose={() => setExcelModalOpen(false)}
+        onImport={handleExcelImport}
       />
     </div>
   );
