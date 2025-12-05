@@ -104,3 +104,12 @@ export interface BannerProperties extends BaseElement {
 }
 
 export type CanvasElement = TextProperties | ImageProperties | BannerProperties;
+
+export interface ExcelMapping {
+  name: string;
+  dosage: string;
+  usage: string;
+  listPrice: string;
+  idecoPrice: string;
+  manufacturer: string;
+}

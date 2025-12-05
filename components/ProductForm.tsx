@@ -1,7 +1,7 @@
 
-import React, { useRef } from 'react';
-import { ProductData } from '../types';
-import { Pill, DollarSign, Factory, FileText, Tag, Upload, Trash2, HeartPulse, AlertCircle, Smartphone, Monitor, Quote } from 'lucide-react';
+import React, { useRef, useState, useMemo, useEffect } from 'react';
+import { ProductData, ExcelMapping } from '../types';
+import { Pill, DollarSign, Factory, FileText, Tag, Upload, Trash2, HeartPulse, AlertCircle, Smartphone, Monitor, Quote, Search, Link as LinkIcon, Download, X } from 'lucide-react';
 import { Sparkles } from 'lucide-react';
 
 interface ProductFormProps {
@@ -13,6 +13,9 @@ interface ProductFormProps {
   onRemoveImage: (id: number) => void;
   onSubmit: () => void;
   isProcessing: boolean;
+  masterLibrary?: any[];
+  columnMapping?: ExcelMapping;
+  onApplyLibraryProduct?: (id: number, libraryItem: any) => void;
 }
 
 const PROMPT_TEMPLATES = [
@@ -41,14 +44,39 @@ export const ProductForm: React.FC<ProductFormProps> = ({
   onImageUpload,
   onRemoveImage,
   onSubmit, 
-  isProcessing 
+  isProcessing,
+  masterLibrary = [],
+  columnMapping,
+  onApplyLibraryProduct
 }) => {
   
   const activeProduct = products.find(p => p.id === activeTab) || products[0];
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Autocomplete State
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [imageUrlInput, setImageUrlInput] = useState('');
+  const [isUrlLoading, setIsUrlLoading] = useState(false);
+  
+  const suggestions = useMemo(() => {
+    if (!activeProduct.name || !masterLibrary.length || !columnMapping?.name) return [];
+    const lowerInput = activeProduct.name.toLowerCase();
+    const nameKey = columnMapping.name;
+    return masterLibrary
+        .filter(item => item[nameKey] && String(item[nameKey]).toLowerCase().includes(lowerInput))
+        .slice(0, 5); // Limit to 5 suggestions
+  }, [activeProduct.name, masterLibrary, columnMapping]);
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>, field: keyof ProductData) => {
     onChange(activeTab, field, e.target.value);
+    if (field === 'name') setShowSuggestions(true);
+  };
+
+  const handleSuggestionClick = (item: any) => {
+      if (onApplyLibraryProduct) {
+          onApplyLibraryProduct(activeTab, item);
+      }
+      setShowSuggestions(false);
   };
 
   const handleCheckboxChange = (e: React.ChangeEvent<HTMLInputElement>, field: keyof ProductData) => {
@@ -71,6 +99,51 @@ export const ProductForm: React.FC<ProductFormProps> = ({
 
   const triggerFileUpload = () => {
     fileInputRef.current?.click();
+  };
+
+  const handleGoogleSearch = () => {
+      if (!activeProduct.name) return;
+      const query = encodeURIComponent(activeProduct.name);
+      window.open(`https://www.google.com/search?tbm=isch&q=${query}`, '_blank');
+  };
+
+  const handleUrlLoad = async () => {
+      if (!imageUrlInput.trim()) return;
+      setIsUrlLoading(true);
+      try {
+          // Use fetch to get blob, then create file
+          // Note: This often hits CORS issues with direct URLs.
+          // For client-side only apps, drawing to canvas is safer to get base64
+          const img = new Image();
+          img.crossOrigin = "Anonymous";
+          img.src = imageUrlInput;
+          
+          await new Promise((resolve, reject) => {
+              img.onload = resolve;
+              img.onerror = () => reject(new Error("Failed to load image. Check CORS or URL."));
+          });
+
+          const canvas = document.createElement('canvas');
+          canvas.width = img.naturalWidth;
+          canvas.height = img.naturalHeight;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+              ctx.drawImage(img, 0, 0);
+              const dataURL = canvas.toDataURL('image/png');
+              
+              // Simulate a file upload event manually or just set base64
+              // Here we construct a File object for consistency with onImageUpload
+              const res = await fetch(dataURL);
+              const blob = await res.blob();
+              const file = new File([blob], "downloaded_image.png", { type: "image/png" });
+              onImageUpload(activeTab, file);
+              setImageUrlInput('');
+          }
+      } catch (e) {
+          alert("Không thể tải ảnh từ URL này (Lỗi bảo mật CORS). Hãy thử tải ảnh về máy rồi upload.");
+      } finally {
+          setIsUrlLoading(false);
+      }
   };
 
   return (
@@ -135,17 +208,30 @@ export const ProductForm: React.FC<ProductFormProps> = ({
         <div className="space-y-5">
           
           {/* Image Upload Area */}
-          <div className="border-2 border-dashed border-slate-300 rounded-lg p-4 bg-slate-50/50 hover:bg-white hover:border-emerald-400 transition-colors">
-            <label className="block text-sm font-medium text-slate-700 mb-2 flex justify-between">
+          <div className="border-2 border-dashed border-slate-300 rounded-lg p-4 bg-slate-50/50 hover:bg-white hover:border-emerald-400 transition-colors relative group">
+            <label className="block text-sm font-medium text-slate-700 mb-2 flex justify-between items-center">
               <span>Ảnh Sản Phẩm (Để AI nhận diện)</span>
-              {activeProduct.imageBase64 && (
-                <button 
-                  onClick={(e) => { e.stopPropagation(); onRemoveImage(activeTab); }}
-                  className="text-xs text-red-500 hover:text-red-700 flex items-center gap-1"
-                >
-                  <Trash2 className="w-3 h-3" /> Xóa ảnh
-                </button>
-              )}
+              
+              <div className="flex items-center gap-2">
+                 {/* Google Search Button */}
+                 {activeProduct.name && (
+                    <button
+                        onClick={(e) => { e.stopPropagation(); handleGoogleSearch(); }}
+                        className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded hover:bg-blue-200 flex items-center gap-1"
+                        title="Tìm ảnh thuốc trên Google"
+                    >
+                        <Search className="w-3 h-3" /> Tìm Google
+                    </button>
+                 )}
+                 {activeProduct.imageBase64 && (
+                    <button 
+                    onClick={(e) => { e.stopPropagation(); onRemoveImage(activeTab); }}
+                    className="text-xs text-red-500 hover:text-red-700 flex items-center gap-1"
+                    >
+                    <Trash2 className="w-3 h-3" /> Xóa ảnh
+                    </button>
+                )}
+              </div>
             </label>
             
             <input 
@@ -157,17 +243,38 @@ export const ProductForm: React.FC<ProductFormProps> = ({
             />
 
             {!activeProduct.imageBase64 ? (
-              <div 
-                onClick={triggerFileUpload}
-                className="cursor-pointer flex flex-col items-center justify-center py-6 text-slate-400"
-              >
-                <Upload className="w-8 h-8 mb-2 text-slate-300" />
-                <p className="text-sm">Click để tải ảnh thuốc/hộp lên</p>
-                <p className="text-xs text-slate-400 mt-1">(AI sẽ tự nhìn ảnh để viết mô tả)</p>
+              <div className="flex flex-col gap-4">
+                  <div 
+                    onClick={triggerFileUpload}
+                    className="cursor-pointer flex flex-col items-center justify-center py-4 text-slate-400 hover:text-emerald-500 transition-colors"
+                  >
+                    <Upload className="w-8 h-8 mb-2 opacity-50" />
+                    <p className="text-sm font-medium">Click để tải ảnh thuốc/hộp lên</p>
+                  </div>
+                  
+                  {/* URL Paste Input */}
+                  <div className="flex items-center gap-2 border-t border-slate-200 pt-3">
+                     <LinkIcon className="w-4 h-4 text-slate-400" />
+                     <input 
+                        type="text" 
+                        placeholder="Hoặc dán link ảnh vào đây..."
+                        className="flex-1 text-xs border border-slate-300 rounded px-2 py-1.5 focus:ring-1 focus:ring-emerald-500 outline-none bg-white"
+                        value={imageUrlInput}
+                        onChange={(e) => setImageUrlInput(e.target.value)}
+                        onClick={(e) => e.stopPropagation()}
+                     />
+                     <button 
+                        onClick={(e) => { e.stopPropagation(); handleUrlLoad(); }}
+                        disabled={!imageUrlInput.trim() || isUrlLoading}
+                        className="text-xs bg-emerald-600 text-white px-3 py-1.5 rounded hover:bg-emerald-700 disabled:opacity-50"
+                     >
+                        {isUrlLoading ? '...' : 'Tải'}
+                     </button>
+                  </div>
               </div>
             ) : (
               <div className="flex items-center gap-4 cursor-pointer" onClick={triggerFileUpload}>
-                <div className="w-20 h-20 rounded-md overflow-hidden border border-slate-200 shadow-sm shrink-0 bg-white">
+                <div className="w-20 h-20 rounded-md overflow-hidden border border-slate-200 shadow-sm shrink-0 bg-white relative">
                   <img src={activeProduct.imageBase64} alt="Product" className="w-full h-full object-contain" />
                 </div>
                 <div className="flex-1">
@@ -180,18 +287,37 @@ export const ProductForm: React.FC<ProductFormProps> = ({
             )}
           </div>
 
-          {/* Row 1: Name */}
-          <div>
+          {/* Row 1: Name (With Autocomplete) */}
+          <div className="relative z-20">
             <label className="block text-sm font-medium text-slate-700 mb-1">Tên Thuốc (Tiêu đề 1)</label>
             <div className="relative">
               <input
                 type="text"
                 value={activeProduct.name}
                 onChange={(e) => handleChange(e, 'name')}
+                onFocus={() => setShowSuggestions(true)}
+                onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
                 placeholder="VD: Panadol Extra"
+                autoComplete="off"
                 className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none font-medium"
               />
               <Pill className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+              
+              {/* Autocomplete Dropdown */}
+              {showSuggestions && suggestions.length > 0 && (
+                  <ul className="absolute z-50 w-full bg-white border border-slate-200 rounded-lg shadow-xl mt-1 max-h-60 overflow-y-auto">
+                      {suggestions.map((item, idx) => (
+                          <li 
+                            key={idx}
+                            onMouseDown={() => handleSuggestionClick(item)}
+                            className="px-4 py-2 hover:bg-emerald-50 cursor-pointer text-sm text-slate-700 border-b border-slate-50 last:border-0"
+                          >
+                             <span className="font-semibold text-emerald-700">{item[columnMapping!.name]}</span>
+                             {item[columnMapping!.dosage] && <span className="text-xs text-slate-500 ml-2">({item[columnMapping!.dosage]})</span>}
+                          </li>
+                      ))}
+                  </ul>
+              )}
             </div>
           </div>
 

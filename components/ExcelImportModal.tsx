@@ -1,40 +1,41 @@
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import * as XLSX from 'xlsx';
-import { Upload, X, ArrowRight, Table, Check, AlertCircle } from 'lucide-react';
-import { ProductData } from '../types';
+import { Upload, X, ArrowRight, Table, Check, AlertCircle, Search } from 'lucide-react';
+import { ProductData, ExcelMapping } from '../types';
 
 interface ExcelImportModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onImport: (products: ProductData[]) => void;
+  onImport: (products: ProductData[], rawData: any[], mapping: ExcelMapping) => void;
 }
 
 type ExcelRow = Record<string, any>;
 
-const MAPPING_FIELDS: { key: keyof ProductData; label: string; placeholder: string }[] = [
-  { key: 'name', label: 'Tên Thuốc', placeholder: 'Chọn cột tên thuốc...' },
-  { key: 'dosage', label: 'Hàm Lượng', placeholder: 'Chọn cột hàm lượng...' },
-  { key: 'usage', label: 'Công Dụng', placeholder: 'Chọn cột công dụng...' },
-  { key: 'listPrice', label: 'Giá Niêm Yết', placeholder: 'Chọn cột giá...' },
-  { key: 'idecoPrice', label: 'Giá IDECO', placeholder: 'Chọn cột giá khuyến mãi...' },
-  { key: 'manufacturer', label: 'Nhà Sản Xuất', placeholder: 'Chọn cột NSX...' },
+const MAPPING_FIELDS: { key: keyof ExcelMapping; label: string }[] = [
+  { key: 'name', label: 'Tên Thuốc' },
+  { key: 'dosage', label: 'Hàm Lượng' },
+  { key: 'usage', label: 'Công Dụng' },
+  { key: 'listPrice', label: 'Giá Niêm Yết' },
+  { key: 'idecoPrice', label: 'Giá IDECO' },
+  { key: 'manufacturer', label: 'Nhà Sản Xuất' },
 ];
 
 export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({ isOpen, onClose, onImport }) => {
   const [step, setStep] = useState<1 | 2>(1); // 1: Upload, 2: Map & Select
   const [data, setData] = useState<ExcelRow[]>([]);
   const [columns, setColumns] = useState<string[]>([]);
-  const [fileName, setFileName] = useState('');
-  const [mapping, setMapping] = useState<Record<string, string>>({});
+  const [mapping, setMapping] = useState<ExcelMapping>({
+    name: '', dosage: '', usage: '', listPrice: '', idecoPrice: '', manufacturer: ''
+  });
   const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set());
+  const [searchQuery, setSearchQuery] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    setFileName(file.name);
     const reader = new FileReader();
     reader.onload = (evt) => {
       try {
@@ -46,24 +47,22 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({ isOpen, onCl
         
         if (jsonData.length > 0) {
           const headers = jsonData[0] as string[];
-          // Clean headers (trim whitespace)
           const cleanHeaders = headers.map(h => String(h).trim());
           setColumns(cleanHeaders);
           
-          // Convert rest to objects
-          const rows = XLSX.utils.sheet_to_json<ExcelRow>(ws, { header: cleanHeaders }); // Use clean headers
+          const rows = XLSX.utils.sheet_to_json<ExcelRow>(ws, { header: cleanHeaders });
           setData(rows);
           
           // Auto-guess mapping
-          const newMapping: Record<string, string> = {};
+          const newMapping: ExcelMapping = { name: '', dosage: '', usage: '', listPrice: '', idecoPrice: '', manufacturer: '' };
           cleanHeaders.forEach(col => {
              const lower = col.toLowerCase();
-             if (lower.includes('tên thuốc')) newMapping['name'] = col;
-             else if (lower.includes('hàm lượng') || lower.includes('nồng độ')) newMapping['dosage'] = col;
-             else if (lower.includes('công dụng')) newMapping['usage'] = col;
-             else if (lower.includes('đơn giá hộp') || lower.includes('giá niêm yết')) newMapping['listPrice'] = col;
-             else if (lower.includes('giá mua 6') || lower.includes('ideco')) newMapping['idecoPrice'] = col;
-             else if (lower.includes('đơn vị sx') || lower.includes('nhà sản xuất')) newMapping['manufacturer'] = col;
+             if (lower.includes('tên thuốc')) newMapping.name = col;
+             else if (lower.includes('hàm lượng') || lower.includes('nồng độ')) newMapping.dosage = col;
+             else if (lower.includes('công dụng')) newMapping.usage = col;
+             else if (lower.includes('đơn giá hộp') || lower.includes('giá niêm yết')) newMapping.listPrice = col;
+             else if (lower.includes('giá mua 6') || lower.includes('ideco')) newMapping.idecoPrice = col;
+             else if (lower.includes('đơn vị sx') || lower.includes('nhà sản xuất')) newMapping.manufacturer = col;
           });
           setMapping(newMapping);
           
@@ -77,16 +76,29 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({ isOpen, onCl
     reader.readAsBinaryString(file);
   };
 
-  const handleMappingChange = (field: string, column: string) => {
+  const handleMappingChange = (field: keyof ExcelMapping, column: string) => {
     setMapping(prev => ({ ...prev, [field]: column }));
   };
 
-  const toggleRowSelection = (index: number) => {
+  const toggleRowSelection = (originalIndex: number) => {
     const newSet = new Set(selectedIndices);
-    if (newSet.has(index)) newSet.delete(index);
-    else newSet.add(index);
+    if (newSet.has(originalIndex)) newSet.delete(originalIndex);
+    else newSet.add(originalIndex);
     setSelectedIndices(newSet);
   };
+
+  // Filter data based on search
+  const filteredData = useMemo(() => {
+    if (!searchQuery.trim()) return data.map((row, idx) => ({ row, originalIndex: idx }));
+    const lowerQuery = searchQuery.toLowerCase();
+    const searchCol = mapping.name || columns[0]; // Search in mapped Name col or first col
+    return data
+        .map((row, idx) => ({ row, originalIndex: idx }))
+        .filter(({ row }) => {
+            const val = row[searchCol];
+            return val && String(val).toLowerCase().includes(lowerQuery);
+        });
+  }, [data, searchQuery, mapping.name, columns]);
 
   const handleApply = () => {
     const selectedRows = data.filter((_, idx) => selectedIndices.has(idx));
@@ -95,44 +107,43 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({ isOpen, onCl
       return;
     }
     
-    // Map to ProductData
+    const formatPrice = (val: any) => {
+        if (typeof val === 'number') return val.toLocaleString('vi-VN') + ' đ';
+        return String(val);
+    };
+
     const newProducts: ProductData[] = selectedRows.map((row, idx) => ({
-      id: idx + 1, // Will be re-indexed by parent or just use this temporary
-      name: row[mapping['name']] ? String(row[mapping['name']]) : '',
-      dosage: row[mapping['dosage']] ? String(row[mapping['dosage']]) : '',
-      usage: row[mapping['usage']] ? String(row[mapping['usage']]) : '',
-      listPrice: row[mapping['listPrice']] ? formatPrice(row[mapping['listPrice']]) : '',
-      idecoPrice: row[mapping['idecoPrice']] ? formatPrice(row[mapping['idecoPrice']]) : '',
-      manufacturer: row[mapping['manufacturer']] ? String(row[mapping['manufacturer']]) : '',
-      isETC: false, // Default
+      id: idx + 1,
+      name: row[mapping.name] ? String(row[mapping.name]) : '',
+      dosage: row[mapping.dosage] ? String(row[mapping.dosage]) : '',
+      usage: row[mapping.usage] ? String(row[mapping.usage]) : '',
+      listPrice: row[mapping.listPrice] ? formatPrice(row[mapping.listPrice]) : '',
+      idecoPrice: row[mapping.idecoPrice] ? formatPrice(row[mapping.idecoPrice]) : '',
+      manufacturer: row[mapping.manufacturer] ? String(row[mapping.manufacturer]) : '',
+      isETC: false,
       description: '',
       aspectRatio: 'vertical'
     }));
     
-    // Pass only up to 3 for now as app supports 3
-    onImport(newProducts.slice(0, 3));
+    // Pass processed products AND raw data + mapping for future use
+    onImport(newProducts.slice(0, 3), data, mapping);
     onClose();
-  };
-
-  const formatPrice = (val: any) => {
-    if (typeof val === 'number') return val.toLocaleString('vi-VN') + ' đ';
-    return String(val);
   };
   
   const reset = () => {
       setStep(1);
       setData([]);
       setColumns([]);
-      setFileName('');
-      setMapping({});
+      setMapping({ name: '', dosage: '', usage: '', listPrice: '', idecoPrice: '', manufacturer: '' });
       setSelectedIndices(new Set());
+      setSearchQuery('');
   };
 
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden">
         
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50">
@@ -156,7 +167,6 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({ isOpen, onCl
                     <Upload className="w-16 h-16 text-slate-300 mb-4" />
                     <p className="text-lg font-medium text-slate-600">Click để tải file Excel (.xlsx, .xls)</p>
                     <p className="text-sm text-slate-400 mt-2">Hỗ trợ bảng mã Unicode (UTF-8)</p>
-                    {/* Example format helper */}
                     <div className="mt-8 text-xs text-slate-400 text-center max-w-md">
                         <p className="font-semibold mb-1">Cấu trúc đề xuất:</p>
                         TT | Tên thuốc | Hàm lượng | Công dụng | Đơn giá | Nhà SX
@@ -177,7 +187,7 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({ isOpen, onCl
                                     <select 
                                         className="w-full text-sm border-slate-300 rounded-lg shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                                         value={mapping[field.key] || ''}
-                                        onChange={(e) => handleMappingChange(field.key as string, e.target.value)}
+                                        onChange={(e) => handleMappingChange(field.key, e.target.value)}
                                     >
                                         <option value="">-- Không chọn --</option>
                                         {columns.map(col => (
@@ -189,19 +199,34 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({ isOpen, onCl
                         </div>
                     </div>
 
-                    {/* Data Table */}
-                    <div>
-                        <h4 className="font-semibold text-slate-700 mb-3 flex items-center gap-2 justify-between">
-                             <div className="flex items-center gap-2">
-                                <Check className="w-4 h-4 text-indigo-500" /> 
-                                Bước 2: Chọn sản phẩm (Tối đa 3)
-                             </div>
-                             <span className="text-xs font-normal text-slate-500">Đã chọn: {selectedIndices.size}</span>
-                        </h4>
+                    {/* Data Table with Search */}
+                    <div className="space-y-3">
+                        <div className="flex flex-col md:flex-row justify-between items-end md:items-center gap-3">
+                            <h4 className="font-semibold text-slate-700 flex items-center gap-2">
+                                <div className="flex items-center gap-2">
+                                    <Check className="w-4 h-4 text-indigo-500" /> 
+                                    Bước 2: Chọn sản phẩm (Tối đa 3)
+                                </div>
+                                <span className="text-xs font-normal text-slate-500 bg-white px-2 py-0.5 rounded border border-slate-200">Đã chọn: {selectedIndices.size}</span>
+                            </h4>
+                            
+                            {/* Search Input */}
+                            <div className="relative w-full md:w-64">
+                                <input
+                                    type="text"
+                                    placeholder="Tìm tên thuốc..."
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    className="w-full pl-9 pr-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                                />
+                                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2" />
+                            </div>
+                        </div>
+
                         <div className="border border-slate-200 rounded-lg overflow-hidden">
                             <div className="overflow-x-auto max-h-[300px]">
                                 <table className="w-full text-sm text-left">
-                                    <thead className="bg-slate-100 text-slate-600 font-semibold sticky top-0">
+                                    <thead className="bg-slate-100 text-slate-600 font-semibold sticky top-0 z-10">
                                         <tr>
                                             <th className="p-3 w-10 text-center">
                                                 <input type="checkbox" disabled />
@@ -212,27 +237,35 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({ isOpen, onCl
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100">
-                                        {data.map((row, idx) => (
-                                            <tr 
-                                                key={idx} 
-                                                className={`hover:bg-indigo-50 cursor-pointer transition-colors ${selectedIndices.has(idx) ? 'bg-indigo-50' : ''}`}
-                                                onClick={() => toggleRowSelection(idx)}
-                                            >
-                                                <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
-                                                    <input 
-                                                        type="checkbox" 
-                                                        checked={selectedIndices.has(idx)}
-                                                        onChange={() => toggleRowSelection(idx)}
-                                                        className="rounded text-indigo-600 focus:ring-indigo-500"
-                                                    />
-                                                </td>
-                                                {columns.map(col => (
-                                                    <td key={`${idx}-${col}`} className="p-3 whitespace-nowrap max-w-[200px] truncate">
-                                                        {row[col]}
+                                        {filteredData.length > 0 ? (
+                                            filteredData.map(({ row, originalIndex }) => (
+                                                <tr 
+                                                    key={originalIndex} 
+                                                    className={`hover:bg-indigo-50 cursor-pointer transition-colors ${selectedIndices.has(originalIndex) ? 'bg-indigo-50' : ''}`}
+                                                    onClick={() => toggleRowSelection(originalIndex)}
+                                                >
+                                                    <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
+                                                        <input 
+                                                            type="checkbox" 
+                                                            checked={selectedIndices.has(originalIndex)}
+                                                            onChange={() => toggleRowSelection(originalIndex)}
+                                                            className="rounded text-indigo-600 focus:ring-indigo-500"
+                                                        />
                                                     </td>
-                                                ))}
+                                                    {columns.map(col => (
+                                                        <td key={`${originalIndex}-${col}`} className="p-3 whitespace-nowrap max-w-[200px] truncate">
+                                                            {row[col]}
+                                                        </td>
+                                                    ))}
+                                                </tr>
+                                            ))
+                                        ) : (
+                                            <tr>
+                                                <td colSpan={columns.length + 1} className="p-8 text-center text-slate-500">
+                                                    Không tìm thấy kết quả phù hợp.
+                                                </td>
                                             </tr>
-                                        ))}
+                                        )}
                                     </tbody>
                                 </table>
                             </div>

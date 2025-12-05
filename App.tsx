@@ -3,10 +3,11 @@ import React, { useState } from 'react';
 import { ProductForm } from './components/ProductForm';
 import { ResultDisplay } from './components/ResultDisplay';
 import { ExternalToolModal } from './components/ExternalToolModal';
-import { ExcelImportModal } from './components/ExcelImportModal'; // Import new modal
-import { ProductData, GeneratedResult, AppState } from './types';
+import { ExcelImportModal } from './components/ExcelImportModal';
+import { ProductData, GeneratedResult, AppState, ExcelMapping } from './types';
 import { generateOptimizedPrompt } from './services/geminiService';
-import { PenTool, BrainCircuit, Sparkles, Bot, Table } from 'lucide-react'; // Import Table icon
+import { PenTool, BrainCircuit, Sparkles, Bot, Table, Image } from 'lucide-react';
+import useLocalStorage from './hooks/useLocalStorage';
 
 // Initial Empty Product
 const createEmptyProduct = (id: number): ProductData => ({
@@ -21,7 +22,7 @@ const createEmptyProduct = (id: number): ProductData => ({
   description: '',
   imageBase64: undefined,
   mimeType: undefined,
-  aspectRatio: 'vertical' // Default to vertical
+  aspectRatio: 'vertical'
 });
 
 const App: React.FC = () => {
@@ -41,8 +42,14 @@ const App: React.FC = () => {
   
   const [appState, setAppState] = useState<AppState>(AppState.IDLE);
 
+  // Persistent Storage for Excel Library
+  const [masterLibrary, setMasterLibrary] = useLocalStorage<any[]>('excelMasterLibrary', []);
+  const [columnMapping, setColumnMapping] = useLocalStorage<ExcelMapping>('excelColumnMapping', {
+    name: '', dosage: '', usage: '', listPrice: '', idecoPrice: '', manufacturer: ''
+  });
+
   // External Tool Modal State
-  const [externalTool, setExternalTool] = useState<{ isOpen: boolean; type: 'gen' | 'mind' | null }>({
+  const [externalTool, setExternalTool] = useState<{ isOpen: boolean; type: 'gen' | 'mind' | 'image' | null }>({
     isOpen: false,
     type: null
   });
@@ -56,7 +63,6 @@ const App: React.FC = () => {
 
   // Handle Image Upload and conversion to Base64
   const handleImageUpload = (id: number, file: File) => {
-    // Check file size (limit to 5MB roughly)
     if (file.size > 5 * 1024 * 1024) {
       alert("Ảnh quá lớn. Vui lòng chọn ảnh dưới 5MB.");
       return;
@@ -86,23 +92,19 @@ const App: React.FC = () => {
 
     setAppState(AppState.PROCESSING);
     
-    // Set all relevant statuses to loading
     setResults(prev => prev.map(r => {
         const prod = products.find(p => p.id === r.id);
-        // Only load if product has a name at least
         if (prod && prod.name) return { ...r, status: 'loading', prompt: '' };
         return r;
     }));
 
-    // Process all products that have at least a Name filled in
     const promises = products.map(async (product) => {
-      if (!product.name) return; // Skip empty products
+      if (!product.name) return;
 
       try {
         const prompt = await generateOptimizedPrompt(product);
         setResults(prev => prev.map(r => r.id === product.id ? { ...r, prompt, status: 'success' } : r));
       } catch (error) {
-        // Capture the error message to display in the UI
         const errorMessage = error instanceof Error ? error.message : String(error);
         setResults(prev => prev.map(r => r.id === product.id ? { ...r, prompt: errorMessage, status: 'error' } : r));
       }
@@ -112,17 +114,20 @@ const App: React.FC = () => {
     setAppState(AppState.COMPLETE);
   };
 
-  const handleExcelImport = (importedProducts: ProductData[]) => {
+  const handleExcelImport = (importedProducts: ProductData[], rawData: any[], mapping: ExcelMapping) => {
+    // Save to local storage
+    setMasterLibrary(rawData);
+    setColumnMapping(mapping);
+
     // Merge imported products into the first available slots or overwrite
     setProducts(prev => {
         const newProducts = [...prev];
         importedProducts.forEach((imp, index) => {
             if (index < 3) {
-                // Keep existing ID, overwrite data
                 newProducts[index] = {
-                    ...createEmptyProduct(index + 1), // Reset first to clear old data
+                    ...createEmptyProduct(index + 1),
                     ...imp,
-                    id: index + 1 // Ensure ID stays correct
+                    id: index + 1
                 };
             }
         });
@@ -130,7 +135,27 @@ const App: React.FC = () => {
     });
   };
 
-  const openTool = (type: 'gen' | 'mind') => {
+  // When a product is selected from autocomplete in ProductForm
+  const handleApplyProductFromLibrary = (productIndex: number, libraryItem: any) => {
+    const formatPrice = (val: any) => {
+        if (typeof val === 'number') return val.toLocaleString('vi-VN') + ' đ';
+        if (!val) return '';
+        return String(val);
+    };
+
+    const newProductData: Partial<ProductData> = {
+        name: libraryItem[columnMapping.name] ? String(libraryItem[columnMapping.name]) : '',
+        dosage: libraryItem[columnMapping.dosage] ? String(libraryItem[columnMapping.dosage]) : '',
+        usage: libraryItem[columnMapping.usage] ? String(libraryItem[columnMapping.usage]) : '',
+        listPrice: libraryItem[columnMapping.listPrice] ? formatPrice(libraryItem[columnMapping.listPrice]) : '',
+        idecoPrice: libraryItem[columnMapping.idecoPrice] ? formatPrice(libraryItem[columnMapping.idecoPrice]) : '',
+        manufacturer: libraryItem[columnMapping.manufacturer] ? String(libraryItem[columnMapping.manufacturer]) : '',
+    };
+
+    setProducts(prev => prev.map(p => p.id === productIndex ? { ...p, ...newProductData } : p));
+  };
+
+  const openTool = (type: 'gen' | 'mind' | 'image') => {
     setExternalTool({ isOpen: true, type });
   };
 
@@ -168,6 +193,13 @@ const App: React.FC = () => {
               <span>Nhập Excel</span>
             </button>
             <button
+              onClick={() => openTool('image')}
+              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-pink-500 to-rose-500 text-white font-semibold rounded-lg shadow-md hover:shadow-lg transition-all active:scale-95"
+            >
+              <Image className="w-5 h-5" />
+              <span>Tạo Ảnh</span>
+            </button>
+            <button
               onClick={() => openTool('mind')}
               className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-semibold rounded-lg shadow-md hover:shadow-lg transition-all active:scale-95"
             >
@@ -191,6 +223,9 @@ const App: React.FC = () => {
               onRemoveImage={handleRemoveImage}
               onSubmit={handleGenerateAll}
               isProcessing={appState === AppState.PROCESSING}
+              masterLibrary={masterLibrary}
+              columnMapping={columnMapping}
+              onApplyLibraryProduct={handleApplyProductFromLibrary}
             />
           </div>
 
@@ -209,9 +244,21 @@ const App: React.FC = () => {
       <ExternalToolModal 
         isOpen={externalTool.isOpen}
         onClose={closeTool}
-        url={externalTool.type === 'gen' ? 'https://lmarena.ai/' : 'https://geminigen.ai'}
-        title={externalTool.type === 'gen' ? 'LM Arena' : 'GeminiGen AI'}
-        icon={externalTool.type === 'gen' ? <Bot className="w-5 h-5"/> : <BrainCircuit className="w-5 h-5"/>}
+        url={
+            externalTool.type === 'gen' ? 'https://lmarena.ai/' : 
+            externalTool.type === 'image' ? 'https://ttshub.com/banana/' :
+            'https://geminigen.ai'
+        }
+        title={
+            externalTool.type === 'gen' ? 'LM Arena' : 
+            externalTool.type === 'image' ? 'Banana Image Gen' :
+            'GeminiGen AI'
+        }
+        icon={
+            externalTool.type === 'gen' ? <Bot className="w-5 h-5"/> : 
+            externalTool.type === 'image' ? <Image className="w-5 h-5"/> :
+            <BrainCircuit className="w-5 h-5"/>
+        }
       />
       
       {/* Excel Import Modal */}
