@@ -266,6 +266,8 @@ const App: React.FC = () => {
         isOpen={excelModalOpen}
         onClose={() => setExcelModalOpen(false)}
         onImport={handleExcelImport}
+        savedData={masterLibrary}
+        savedMapping={columnMapping}
       />
     </div>
   );
