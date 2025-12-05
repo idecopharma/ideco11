@@ -135,6 +135,12 @@ const App: React.FC = () => {
     });
   };
 
+  // Explicitly save the library without importing into product slots
+  const handleSaveLibrary = (rawData: any[], mapping: ExcelMapping) => {
+    setMasterLibrary(rawData);
+    setColumnMapping(mapping);
+  };
+
   // When a product is selected from autocomplete in ProductForm
   const handleApplyProductFromLibrary = (productIndex: number, libraryItem: any) => {
     const formatPrice = (val: any) => {
@@ -266,6 +272,7 @@ const App: React.FC = () => {
         isOpen={excelModalOpen}
         onClose={() => setExcelModalOpen(false)}
         onImport={handleExcelImport}
+        onSave={handleSaveLibrary}
         savedData={masterLibrary}
         savedMapping={columnMapping}
       />

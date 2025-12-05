@@ -1,13 +1,14 @@
 
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import * as XLSX from 'xlsx';
-import { Upload, X, ArrowRight, Table, Check, AlertCircle, Search, RefreshCw, FileText } from 'lucide-react';
+import { Upload, X, ArrowRight, Table, Check, AlertCircle, Search, RefreshCw, FileText, Save } from 'lucide-react';
 import { ProductData, ExcelMapping } from '../types';
 
 interface ExcelImportModalProps {
   isOpen: boolean;
   onClose: () => void;
   onImport: (products: ProductData[], rawData: any[], mapping: ExcelMapping) => void;
+  onSave: (rawData: any[], mapping: ExcelMapping) => void;
   savedData?: any[];
   savedMapping?: ExcelMapping;
 }
@@ -23,7 +24,7 @@ const MAPPING_FIELDS: { key: keyof ExcelMapping; label: string }[] = [
   { key: 'manufacturer', label: 'Nhà Sản Xuất' },
 ];
 
-export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({ isOpen, onClose, onImport, savedData = [], savedMapping }) => {
+export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({ isOpen, onClose, onImport, onSave, savedData = [], savedMapping }) => {
   const [step, setStep] = useState<1 | 2>(1); // 1: Upload, 2: Map & Select
   const [data, setData] = useState<ExcelRow[]>([]);
   const [columns, setColumns] = useState<string[]>([]);
@@ -33,6 +34,7 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({ isOpen, onCl
   const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
   const [isAutoLoaded, setIsAutoLoaded] = useState(false);
+  const [isSaved, setIsSaved] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Initialize from saved data when opened
@@ -50,12 +52,13 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({ isOpen, onCl
             
             setStep(2);
             setIsAutoLoaded(true);
+            setIsSaved(true); // Since it came from saved storage, it is 'saved'
         } else {
             // No saved data, start at upload
             reset();
         }
     }
-  }, [isOpen, savedData, savedMapping]);
+  }, [isOpen]); // Depend only on isOpen to avoid resetting during interaction
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -93,6 +96,7 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({ isOpen, onCl
           
           setStep(2);
           setIsAutoLoaded(false);
+          setIsSaved(false); // New upload is not saved yet
         }
       } catch (error) {
         console.error("Error parsing excel", error);
@@ -104,6 +108,7 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({ isOpen, onCl
 
   const handleMappingChange = (field: keyof ExcelMapping, column: string) => {
     setMapping(prev => ({ ...prev, [field]: column }));
+    setIsSaved(false); // Mapping changed, status is unsaved
   };
 
   const toggleRowSelection = (originalIndex: number) => {
@@ -125,6 +130,11 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({ isOpen, onCl
             return val && String(val).toLowerCase().includes(lowerQuery);
         });
   }, [data, searchQuery, mapping.name, columns]);
+
+  const handleManualSave = () => {
+      onSave(data, mapping);
+      setIsSaved(true);
+  };
 
   const handleApply = () => {
     const selectedRows = data.filter((_, idx) => selectedIndices.has(idx));
@@ -164,6 +174,7 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({ isOpen, onCl
       setSelectedIndices(new Set());
       setSearchQuery('');
       setIsAutoLoaded(false);
+      setIsSaved(false);
   };
 
   if (!isOpen) return null;
@@ -327,13 +338,27 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({ isOpen, onCl
         {/* Footer */}
         <div className="px-6 py-4 border-t border-slate-200 bg-slate-50 flex justify-end gap-3">
              {step === 2 && (
-                <button 
-                    onClick={reset}
-                    className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200 rounded-lg transition-colors flex items-center gap-2"
-                >
-                    <RefreshCw className="w-4 h-4" />
-                    Nhập File Khác
-                </button>
+                <>
+                    <button 
+                        onClick={reset}
+                        className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200 rounded-lg transition-colors flex items-center gap-2"
+                    >
+                        <RefreshCw className="w-4 h-4" />
+                        Nhập File Khác
+                    </button>
+                    <button 
+                        onClick={handleManualSave}
+                        disabled={isSaved}
+                        className={`px-4 py-2 text-sm font-bold rounded-lg transition-colors flex items-center gap-2 border 
+                            ${isSaved 
+                                ? 'bg-green-50 text-green-700 border-green-200 cursor-default' 
+                                : 'bg-white text-emerald-600 border-emerald-600 hover:bg-emerald-50'
+                            }`}
+                    >
+                        {isSaved ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}
+                        {isSaved ? 'Đã Lưu Dữ Liệu' : 'Lưu Dữ Liệu'}
+                    </button>
+                </>
              )}
             <button 
                 onClick={onClose}
@@ -348,7 +373,7 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({ isOpen, onCl
                     className="px-6 py-2 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
                     <Check className="w-4 h-4" />
-                    Nhập Dữ Liệu
+                    Nhập vào 3 ô SP
                 </button>
             )}
         </div>
