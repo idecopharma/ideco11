@@ -256,12 +256,12 @@ const App: React.FC = () => {
         onClose={closeTool}
         url={
             externalTool.type === 'gen' ? 'https://lmarena.ai/' : 
-            externalTool.type === 'image' ? 'https://ttshub.com/banana/' :
+            externalTool.type === 'image' ? 'https://lmarena.ai/' :
             'https://geminigen.ai'
         }
         title={
             externalTool.type === 'gen' ? 'LM Arena' : 
-            externalTool.type === 'image' ? 'Banana Image Gen' :
+            externalTool.type === 'image' ? 'LM Arena' :
             'GeminiGen AI'
         }
         icon={
