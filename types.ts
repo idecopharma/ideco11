@@ -112,4 +112,5 @@ export interface ExcelMapping {
   listPrice: string;
   idecoPrice: string;
   manufacturer: string;
+  packaging: string; // New field for packaging specification
 }

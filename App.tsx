@@ -45,7 +45,7 @@ const App: React.FC = () => {
   // Persistent Storage for Excel Library
   const [masterLibrary, setMasterLibrary] = useLocalStorage<any[]>('excelMasterLibrary', []);
   const [columnMapping, setColumnMapping] = useLocalStorage<ExcelMapping>('excelColumnMapping', {
-    name: '', dosage: '', usage: '', listPrice: '', idecoPrice: '', manufacturer: ''
+    name: '', dosage: '', usage: '', listPrice: '', idecoPrice: '', manufacturer: '', packaging: ''
   });
 
   // External Tool Modal State
@@ -149,12 +149,16 @@ const App: React.FC = () => {
         return String(val);
     };
 
+    const rawListPrice = libraryItem[columnMapping.listPrice] ? formatPrice(libraryItem[columnMapping.listPrice]) : '';
+    const rawIdecoPrice = libraryItem[columnMapping.idecoPrice] ? formatPrice(libraryItem[columnMapping.idecoPrice]) : '';
+    const packaging = libraryItem[columnMapping.packaging] ? String(libraryItem[columnMapping.packaging]) : '';
+
     const newProductData: Partial<ProductData> = {
         name: libraryItem[columnMapping.name] ? String(libraryItem[columnMapping.name]) : '',
         dosage: libraryItem[columnMapping.dosage] ? String(libraryItem[columnMapping.dosage]) : '',
         usage: libraryItem[columnMapping.usage] ? String(libraryItem[columnMapping.usage]) : '',
-        listPrice: libraryItem[columnMapping.listPrice] ? formatPrice(libraryItem[columnMapping.listPrice]) : '',
-        idecoPrice: libraryItem[columnMapping.idecoPrice] ? formatPrice(libraryItem[columnMapping.idecoPrice]) : '',
+        listPrice: rawListPrice + (packaging && rawListPrice ? ` / ${packaging}` : ''),
+        idecoPrice: rawIdecoPrice + (packaging && rawIdecoPrice ? ` / ${packaging}` : ''),
         manufacturer: libraryItem[columnMapping.manufacturer] ? String(libraryItem[columnMapping.manufacturer]) : '',
     };
 

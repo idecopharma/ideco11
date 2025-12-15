@@ -19,6 +19,7 @@ const MAPPING_FIELDS: { key: keyof ExcelMapping; label: string }[] = [
   { key: 'name', label: 'Tên Thuốc' },
   { key: 'dosage', label: 'Hàm Lượng' },
   { key: 'usage', label: 'Công Dụng' },
+  { key: 'packaging', label: 'Quy Cách (Đóng gói)' }, // Added packaging field
   { key: 'listPrice', label: 'Giá Niêm Yết' },
   { key: 'idecoPrice', label: 'Giá IDECO' },
   { key: 'manufacturer', label: 'Nhà Sản Xuất' },
@@ -29,7 +30,7 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({ isOpen, onCl
   const [data, setData] = useState<ExcelRow[]>([]);
   const [columns, setColumns] = useState<string[]>([]);
   const [mapping, setMapping] = useState<ExcelMapping>({
-    name: '', dosage: '', usage: '', listPrice: '', idecoPrice: '', manufacturer: ''
+    name: '', dosage: '', usage: '', listPrice: '', idecoPrice: '', manufacturer: '', packaging: ''
   });
   const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
@@ -47,7 +48,8 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({ isOpen, onCl
             setColumns(cols);
             
             if (savedMapping) {
-                setMapping(savedMapping);
+                // Ensure legacy saved mappings have the packaging field
+                setMapping({ ...savedMapping, packaging: savedMapping.packaging || '' });
             }
             
             setStep(2);
@@ -82,12 +84,13 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({ isOpen, onCl
           setData(rows);
           
           // Auto-guess mapping
-          const newMapping: ExcelMapping = { name: '', dosage: '', usage: '', listPrice: '', idecoPrice: '', manufacturer: '' };
+          const newMapping: ExcelMapping = { name: '', dosage: '', usage: '', listPrice: '', idecoPrice: '', manufacturer: '', packaging: '' };
           cleanHeaders.forEach(col => {
              const lower = col.toLowerCase();
              if (lower.includes('tên thuốc')) newMapping.name = col;
              else if (lower.includes('hàm lượng') || lower.includes('nồng độ')) newMapping.dosage = col;
              else if (lower.includes('công dụng')) newMapping.usage = col;
+             else if (lower.includes('quy cách') || lower.includes('đóng gói')) newMapping.packaging = col; // Auto-guess packaging
              else if (lower.includes('đơn giá hộp') || lower.includes('giá niêm yết')) newMapping.listPrice = col;
              else if (lower.includes('giá mua 6') || lower.includes('ideco')) newMapping.idecoPrice = col;
              else if (lower.includes('đơn vị sx') || lower.includes('nhà sản xuất')) newMapping.manufacturer = col;
@@ -148,18 +151,31 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({ isOpen, onCl
         return String(val);
     };
 
-    const newProducts: ProductData[] = selectedRows.map((row, idx) => ({
-      id: idx + 1,
-      name: row[mapping.name] ? String(row[mapping.name]) : '',
-      dosage: row[mapping.dosage] ? String(row[mapping.dosage]) : '',
-      usage: row[mapping.usage] ? String(row[mapping.usage]) : '',
-      listPrice: row[mapping.listPrice] ? formatPrice(row[mapping.listPrice]) : '',
-      idecoPrice: row[mapping.idecoPrice] ? formatPrice(row[mapping.idecoPrice]) : '',
-      manufacturer: row[mapping.manufacturer] ? String(row[mapping.manufacturer]) : '',
-      isETC: false,
-      description: '',
-      aspectRatio: 'vertical'
-    }));
+    const newProducts: ProductData[] = selectedRows.map((row, idx) => {
+      // Get basic price string
+      const rawListPrice = row[mapping.listPrice] ? formatPrice(row[mapping.listPrice]) : '';
+      const rawIdecoPrice = row[mapping.idecoPrice] ? formatPrice(row[mapping.idecoPrice]) : '';
+      
+      // Get packaging spec
+      const packaging = row[mapping.packaging] ? String(row[mapping.packaging]) : '';
+      
+      // Combine: Price / Packaging
+      const listPrice = rawListPrice + (packaging && rawListPrice ? ` / ${packaging}` : '');
+      const idecoPrice = rawIdecoPrice + (packaging && rawIdecoPrice ? ` / ${packaging}` : '');
+
+      return {
+        id: idx + 1,
+        name: row[mapping.name] ? String(row[mapping.name]) : '',
+        dosage: row[mapping.dosage] ? String(row[mapping.dosage]) : '',
+        usage: row[mapping.usage] ? String(row[mapping.usage]) : '',
+        listPrice: listPrice,
+        idecoPrice: idecoPrice,
+        manufacturer: row[mapping.manufacturer] ? String(row[mapping.manufacturer]) : '',
+        isETC: false,
+        description: '',
+        aspectRatio: 'vertical'
+      };
+    });
     
     // Pass processed products AND raw data + mapping for future use
     onImport(newProducts.slice(0, 3), data, mapping);
@@ -170,7 +186,7 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({ isOpen, onCl
       setStep(1);
       setData([]);
       setColumns([]);
-      setMapping({ name: '', dosage: '', usage: '', listPrice: '', idecoPrice: '', manufacturer: '' });
+      setMapping({ name: '', dosage: '', usage: '', listPrice: '', idecoPrice: '', manufacturer: '', packaging: '' });
       setSelectedIndices(new Set());
       setSearchQuery('');
       setIsAutoLoaded(false);
@@ -207,7 +223,7 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({ isOpen, onCl
                     <p className="text-sm text-slate-400 mt-2">Hỗ trợ bảng mã Unicode (UTF-8)</p>
                     <div className="mt-8 text-xs text-slate-400 text-center max-w-md">
                         <p className="font-semibold mb-1">Cấu trúc đề xuất:</p>
-                        TT | Tên thuốc | Hàm lượng | Công dụng | Đơn giá | Nhà SX
+                        TT | Tên thuốc | Hàm lượng | Công dụng | Đơn giá | Nhà SX | Quy cách
                     </div>
                 </div>
             ) : (
