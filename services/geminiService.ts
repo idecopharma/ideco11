@@ -9,7 +9,7 @@ import { ProductData } from "../types";
 export const generateOptimizedPrompt = async (data: ProductData): Promise<string> => {
   // Initialize inside function to ensure we use the current environment variable
   // and prevent module-level initialization errors if the key is missing on load.
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || 'FAKE_API_KEY_FOR_DEVELOPMENT' });
 
   try {
     const parts: any[] = [];
@@ -61,20 +61,20 @@ export const generateOptimizedPrompt = async (data: ProductData): Promise<string
        - **Subtitle:** "${data.usage}"
          -> **INSTRUCTION:** Clean, crisp sans-serif font. Readable and professional.
        
-       - **Title 2 (List Price):** "Giá niêm yết: ${data.listPrice}"
+       - **Title 2 (List Price):** "GiÃ¡ niÃªm yáº¿t: ${data.listPrice}"
          -> **INSTRUCTION:** Use a neutral color (grey/silver) or a thin font weight. It should be visible but NOT the main focus.
        
-       - **Title 3 (THE DEAL SEAL - IDECO Price):** "Giá mua từ IDECO chỉ: ${data.idecoPrice}"
+       - **Title 3 (THE DEAL SEAL - IDECO Price):** "GiÃ¡ mua tá»« IDECO chá»: ${data.idecoPrice}"
          -> **INSTRUCTION:** This must be the **MOST ATTRACTIVE** element. 
             *   Make the text **SIGNIFICANTLY LARGER** than the List Price.
             *   Use **VIBRANT COLORS** like Bright Red, Deep Gold, or Neon Green to contrast heavily with the background.
             *   Style it like a "Special Offer" badge or a high-impact price tag.
             *   **Emphasize the numbers** to make the price look like a steal.
        
-       - **Title 4 (Footer Anchor):** "Sản xuất bởi: ${data.manufacturer}" 
+       - **Title 4 (Footer Anchor):** "Sáº£n xuáº¥t bá»i: ${data.manufacturer}" 
          -> **INSTRUCTION:** STRICTLY PLACE THIS TEXT AT THE VERY BOTTOM EDGE (Footer Area) of the poster. Use small, discrete, professional sans-serif font. It must be separated from the main content.
        
-       ${data.isETC ? '- **Compliance Label:** Add small text in top corner: "Thuốc kê toa" (Red warning color, distinct).' : ''}
+       ${data.isETC ? '- **Compliance Label:** Add small text in top corner: "Thuá»c kÃª toa" (Red warning color, distinct).' : ''}
 
     3. **Style**: Commercial photography, macro lens details, high dynamic range, trust-inspiring atmosphere.
 
