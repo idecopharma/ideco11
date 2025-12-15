@@ -300,20 +300,20 @@ export const ProductForm: React.FC<ProductFormProps> = ({
                         onClick={(e) => e.stopPropagation()}
                      />
                      <button 
-                        onClick={(e) => { e.stopPropagation(); handleDownloadFromUrl(); }}
-                        disabled={!imageUrlInput.trim() || isUrlLoading}
-                        className="text-xs bg-white text-emerald-600 border border-emerald-600 px-3 py-1.5 rounded hover:bg-emerald-50 disabled:opacity-50"
-                        title="Tải ảnh về máy"
-                     >
-                        <Download className="w-4 h-4" />
-                     </button>
-                     <button 
                         onClick={(e) => { e.stopPropagation(); handleUrlLoad(); }}
                         disabled={!imageUrlInput.trim() || isUrlLoading}
                         className="text-xs bg-emerald-600 text-white px-3 py-1.5 rounded hover:bg-emerald-700 disabled:opacity-50"
                         title="Tải vào ứng dụng"
                      >
                         {isUrlLoading ? '...' : 'Dùng'}
+                     </button>
+                     <button 
+                        onClick={(e) => { e.stopPropagation(); handleDownloadFromUrl(); }}
+                        disabled={!imageUrlInput.trim() || isUrlLoading}
+                        className="text-xs bg-white text-emerald-600 border border-emerald-600 px-3 py-1.5 rounded hover:bg-emerald-50 disabled:opacity-50"
+                        title="Tải ảnh về máy"
+                     >
+                        <Download className="w-4 h-4" />
                      </button>
                   </div>
               </div>
