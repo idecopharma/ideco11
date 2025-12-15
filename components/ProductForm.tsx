@@ -41,7 +41,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({
   activeTab, 
   onTabChange, 
   onChange, 
-  onImageUpload,
+  onImageUpload, 
   onRemoveImage,
   onSubmit, 
   isProcessing,
@@ -141,6 +141,42 @@ export const ProductForm: React.FC<ProductFormProps> = ({
           }
       } catch (e) {
           alert("Không thể tải ảnh từ URL này (Lỗi bảo mật CORS). Hãy thử tải ảnh về máy rồi upload.");
+      } finally {
+          setIsUrlLoading(false);
+      }
+  };
+
+  const handleDownloadFromUrl = async () => {
+      if (!imageUrlInput.trim()) return;
+      setIsUrlLoading(true);
+      try {
+          const img = new Image();
+          img.crossOrigin = "Anonymous";
+          img.src = imageUrlInput;
+          
+          await new Promise((resolve, reject) => {
+              img.onload = resolve;
+              img.onerror = () => reject(new Error("Failed to load image."));
+          });
+
+          const canvas = document.createElement('canvas');
+          canvas.width = img.naturalWidth;
+          canvas.height = img.naturalHeight;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+              ctx.drawImage(img, 0, 0);
+              const dataURL = canvas.toDataURL('image/png');
+              
+              const link = document.createElement('a');
+              link.href = dataURL;
+              link.download = `downloaded_image_${Date.now()}.png`;
+              document.body.appendChild(link);
+              link.click();
+              document.body.removeChild(link);
+          }
+      } catch (e) {
+           alert("Không thể tải xuống trực tiếp do chính sách bảo mật (CORS). Sẽ mở ảnh trong tab mới.");
+           window.open(imageUrlInput, '_blank');
       } finally {
           setIsUrlLoading(false);
       }
@@ -264,11 +300,20 @@ export const ProductForm: React.FC<ProductFormProps> = ({
                         onClick={(e) => e.stopPropagation()}
                      />
                      <button 
+                        onClick={(e) => { e.stopPropagation(); handleDownloadFromUrl(); }}
+                        disabled={!imageUrlInput.trim() || isUrlLoading}
+                        className="text-xs bg-white text-emerald-600 border border-emerald-600 px-3 py-1.5 rounded hover:bg-emerald-50 disabled:opacity-50"
+                        title="Tải ảnh về máy"
+                     >
+                        <Download className="w-4 h-4" />
+                     </button>
+                     <button 
                         onClick={(e) => { e.stopPropagation(); handleUrlLoad(); }}
                         disabled={!imageUrlInput.trim() || isUrlLoading}
                         className="text-xs bg-emerald-600 text-white px-3 py-1.5 rounded hover:bg-emerald-700 disabled:opacity-50"
+                        title="Tải vào ứng dụng"
                      >
-                        {isUrlLoading ? '...' : 'Tải'}
+                        {isUrlLoading ? '...' : 'Dùng'}
                      </button>
                   </div>
               </div>
