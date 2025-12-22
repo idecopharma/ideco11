@@ -2,7 +2,7 @@
 import { GoogleGenAI } from "@google/genai";
 import { ProductData } from "../types";
 
-const getAI = () => new GoogleGenAI({ apiKey: process.env.API_KEY });
+const getAI = () => new GoogleGenAI({ apiKey: process.env.API_KEY || 'FAKE_API_KEY_FOR_DEVELOPMENT' });
 
 /**
  * Generates an optimized image generation prompt based on product data.
@@ -36,7 +36,7 @@ export const generateOptimizedPrompt = async (data: ProductData): Promise<string
 };
 
 /**
- * Xử lý hình ảnh: Xóa nền hoặc Tạo hộp 3D
+ * Xá»­ lÃ½ hÃ¬nh áº£nh: XÃ³a ná»n hoáº·c Táº¡o há»p 3D
  */
 export const processImageWithAI = async (
   imageBase64: string, 
@@ -67,7 +67,7 @@ export const processImageWithAI = async (
         return `data:image/png;base64,${part.inlineData.data}`;
       }
     }
-    throw new Error("Không nhận được dữ liệu hình ảnh từ AI.");
+    throw new Error("KhÃ´ng nháº­n ÄÆ°á»£c dá»¯ liá»u hÃ¬nh áº£nh tá»« AI.");
   } catch (error) {
     console.error("Image Processing Error:", error);
     throw error;
