@@ -4,13 +4,15 @@ import { ProductData } from "../types";
 
 /**
  * Generates an optimized image generation prompt based on product data.
+ * FORCED: Vertical layout and specific price information.
  */
 export const generateOptimizedPrompt = async (data: ProductData): Promise<string> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || 'FAKE_API_KEY_FOR_DEVELOPMENT' });
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
   try {
     const parts: any[] = [];
 
+    // Attach product image if available for reference
     if (data.imageBase64 && data.mimeType) {
       const base64Data = data.imageBase64.split(',')[1];
       parts.push({
@@ -22,31 +24,30 @@ export const generateOptimizedPrompt = async (data: ProductData): Promise<string
     }
 
     const promptInput = `
-    Role: Master Creative Director for Pharmaceutical Advertising.
-    Task: Create a masterpiece text-to-image prompt for a professional medical poster.
+    Role: Professional Creative Director for High-End Pharmaceutical Advertising.
+    Task: Create a highly detailed English prompt for an AI image generator (like Midjourney or Stable Diffusion) to create a professional medical poster.
 
-    DATA INPUTS (RENDER EXACTLY AS WRITTEN):
-    - Title 1 (Product Name): "${data.name}"
-    - Title 2 (List Price): "${data.listPrice}"
-    - Title 3 (SPECIAL IDECO PRICE): "${data.idecoPrice}"
-    - Title 4 (Manufacturer): "NhÃ  sáº£n xuáº¥t bá»i: ${data.manufacturer}"
-    - Detail: ${data.dosage} | ${data.usage}
-    - Regulatory: ${data.isETC ? 'THUá»C KÃ TOA (REQUIRED)' : 'NONE'}
+    MANDATORY ORIENTATION:
+    - This MUST be a **Vertical Poster** (Portrait orientation). Describe the composition for a tall frame.
 
-    CRITICAL VISUAL HIERARCHY:
-    1. BRANDING: Analyze the attached image. Render the product box exactly as shown. Use massive 3D typography for "${data.name}" at the top.
-    2. UNDISPUTED CENTERPIECE (IDECO PRICE): The text "${data.idecoPrice}" must be the biggest and most attractive element. Render it in a vibrant 3D glowing neon or liquid gold style. Place it inside a premium floating glass badge or high-end promotional ribbon. It MUST stand out as the hero of the poster.
-    3. PRICE COMPARISON: Place the list price "${data.listPrice}" nearby but in a significantly smaller, clean, elegant font to show contrast.
-    4. MANDATORY BADGE: ${data.isETC ? 'In the top-left corner, place a professional red rectangular stamp with bold white text "Thuá»c kÃª toa".' : ''}
-    5. FOOTER: "NhÃ  sáº£n xuáº¥t bá»i: ${data.manufacturer}" must be placed cleanly at the bottom edge.
+    MANDATORY TEXT ELEMENTS TO BE DESCRIBED IN THE POSTER:
+    - Main Product Title: "${data.name}"
+    - List Price Tag: "Gía Niêm Yết: ${data.listPrice}"
+    - Special Offer Tag: "Gía mua từ IDECO chỉ: ${data.idecoPrice}"
+    - Manufacturer Info: "Nhà sản xuất: ${data.manufacturer}"
+    - Other Details: ${data.dosage}, ${data.usage}
 
-    ARTISTIC SETTING:
-    - Environment: Minimalist luxury pharmacy or a high-tech medicine lab.
-    - Lighting: Volumetric studio lighting, soft shadows, sharp focus on product.
-    - Quality: 8k resolution, photorealistic render, cinematic bokeh background.
-    - Format: ${data.aspectRatio === 'vertical' ? '9:16 Portrait' : '16:9 Landscape'}.
-
-    OUTPUT: Only return the English image generation prompt. No introduction or notes.
+    VISUAL EXECUTION REQUIREMENTS:
+    1. STYLE: Photorealistic, 8k resolution, cinematic studio lighting, premium medical aesthetic.
+    2. COMPOSITION: Place the product box (modeled after the attached image) as the central focus. 
+    3. THE PRICE HERO: Describe a premium, eye-catching 3D UI element or glowing badge that displays "Gía mua từ IDECO chỉ: ${data.idecoPrice}" in bold, large, attractive typography.
+    4. SECONDARY PRICE: Describe the "Gía Niêm Yết: ${data.listPrice}" text placed subtly but clearly near the main price to show the value.
+    5. BRANDING: The background should be a high-end pharmacy, a clean laboratory, or a professional minimalist clinic.
+    6. REGULATORY: ${data.isETC ? 'Include a professional red "THUỐC KÊ TOA" stamp in the corner.' : ''}
+    
+    IMPORTANT: Do not mention "9:16" or "16:9". Simply describe it as a "Vertical Poster" and ensure all price details above are integrated into the visual description.
+    
+    OUTPUT: Return only the final English prompt text. No conversational filler.
     `;
 
     parts.push({ text: promptInput });
@@ -71,12 +72,12 @@ export const processProductImageAI = async (
   mimeType: string, 
   task: 'remove-bg' | 'make-3d'
 ): Promise<string> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || 'FAKE_API_KEY_FOR_DEVELOPMENT' });
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const data = base64Image.includes(',') ? base64Image.split(',')[1] : base64Image;
   
   const prompts = {
-    'remove-bg': "Remove the background. Keep only the product on pure white. Do not alter labels.",
-    'make-3d': "Transform this product photo into a professional 3D packshot on a clean surface."
+    'remove-bg': "Remove the background completely and professionally. Keep only the medical product on a pure white background. Preserve all label text perfectly.",
+    'make-3d': "Transform this flat product photo into a high-quality 3D packshot render. Realistic perspective, soft shadows, standing on a clean reflective surface."
   };
 
   try {
