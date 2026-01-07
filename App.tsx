@@ -170,15 +170,15 @@ const App: React.FC = () => {
           <div className="flex items-center gap-3">
             <div className="bg-indigo-600 text-white p-2.5 rounded-xl shadow-lg"><PenTool className="w-6 h-6" /></div>
             <div>
-              <h1 className="text-2xl md:text-3xl font-extrabold text-slate-800">Pharma Prompt AI</h1>
-              <p className="text-slate-500 text-sm font-medium">Xử lý ảnh & tạo Prompt hàng loạt (3 SP)</p>
+              <h1 className="text-2xl md:text-3xl font-extrabold text-slate-800 tracking-tight">Pharma Poster AI</h1>
+              <p className="text-slate-500 text-sm font-medium">Hệ thống tạo Prompt marketing thuốc chuyên nghiệp</p>
             </div>
           </div>
 
           <div className="flex gap-3">
-            <button onClick={() => setExcelModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-white text-emerald-700 font-bold rounded-lg shadow border border-emerald-200 hover:bg-emerald-50 transition-all active:scale-95"><Table className="w-5 h-5" /> Excel</button>
-            <button onClick={() => window.open('https://lmarena.ai/', '_blank')} className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-pink-500 to-rose-500 text-white font-bold rounded-lg shadow-md hover:shadow-lg transition-all active:scale-95"><ImageIcon className="w-5 h-5" /> Tạo Ảnh</button>
-            <button onClick={() => setExternalTool({ isOpen: true, type: 'mind' })} className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold rounded-lg shadow-md hover:shadow-lg transition-all active:scale-95"><BrainCircuit className="w-5 h-5" /> Mind</button>
+            <button onClick={() => setExcelModalOpen(true)} className="flex items-center gap-2 px-5 py-2.5 bg-white text-emerald-700 font-black rounded-xl shadow-sm border-2 border-emerald-100 hover:bg-emerald-50 transition-all active:scale-95 uppercase text-xs tracking-wider"><Table className="w-5 h-5" /> Quản lý Bảng Giá</button>
+            <button onClick={() => window.open('https://lmarena.ai/', '_blank')} className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-pink-500 to-rose-500 text-white font-black rounded-xl shadow-lg shadow-pink-100 hover:shadow-pink-200 transition-all active:scale-95 uppercase text-xs tracking-wider"><ImageIcon className="w-5 h-5" /> Vẽ Ảnh AI</button>
+            <button onClick={() => setExternalTool({ isOpen: true, type: 'mind' })} className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-black rounded-xl shadow-lg shadow-indigo-100 hover:shadow-indigo-200 transition-all active:scale-95 uppercase text-xs tracking-wider"><BrainCircuit className="w-5 h-5" /> Mind AI</button>
           </div>
         </header>
 

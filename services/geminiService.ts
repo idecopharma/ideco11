@@ -6,7 +6,7 @@ import { ProductData } from "../types";
  * Generates an optimized image generation prompt based on product data.
  */
 export const generateOptimizedPrompt = async (data: ProductData): Promise<string> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || 'FAKE_API_KEY_FOR_DEVELOPMENT' });
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
   try {
     const parts: any[] = [];
@@ -29,16 +29,16 @@ export const generateOptimizedPrompt = async (data: ProductData): Promise<string
     - Title 1 (Product Name): "${data.name}"
     - Title 2 (List Price): "${data.listPrice}"
     - Title 3 (SPECIAL IDECO PRICE): "${data.idecoPrice}"
-    - Title 4 (Manufacturer): "NhÃ  sáº£n xuáº¥t bá»i: ${data.manufacturer}"
+    - Title 4 (Manufacturer): "Nhà sản xuất bởi: ${data.manufacturer}"
     - Detail: ${data.dosage} | ${data.usage}
-    - Regulatory: ${data.isETC ? 'THUá»C KÃ TOA (REQUIRED)' : 'NONE'}
+    - Regulatory: ${data.isETC ? 'THUỐC KÊ TOA (REQUIRED)' : 'NONE'}
 
     CRITICAL VISUAL HIERARCHY:
     1. BRANDING: Analyze the attached image. Render the product box exactly as shown. Use massive 3D typography for "${data.name}" at the top.
     2. UNDISPUTED CENTERPIECE (IDECO PRICE): The text "${data.idecoPrice}" must be the biggest and most attractive element. Render it in a vibrant 3D glowing neon or liquid gold style. Place it inside a premium floating glass badge or high-end promotional ribbon. It MUST stand out as the hero of the poster.
     3. PRICE COMPARISON: Place the list price "${data.listPrice}" nearby but in a significantly smaller, clean, elegant font to show contrast.
-    4. MANDATORY BADGE: ${data.isETC ? 'In the top-left corner, place a professional red rectangular stamp with bold white text "Thuá»c kÃª toa".' : ''}
-    5. FOOTER: "NhÃ  sáº£n xuáº¥t bá»i: ${data.manufacturer}" must be placed cleanly at the bottom edge.
+    4. MANDATORY BADGE: ${data.isETC ? 'In the top-left corner, place a professional red rectangular stamp with bold white text "Thuốc kê toa".' : ''}
+    5. FOOTER: "Nhà sản xuất bởi: ${data.manufacturer}" must be placed cleanly at the bottom edge.
 
     ARTISTIC SETTING:
     - Environment: Minimalist luxury pharmacy or a high-tech medicine lab.
@@ -71,7 +71,7 @@ export const processProductImageAI = async (
   mimeType: string, 
   task: 'remove-bg' | 'make-3d'
 ): Promise<string> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || 'FAKE_API_KEY_FOR_DEVELOPMENT' });
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const data = base64Image.includes(',') ? base64Image.split(',')[1] : base64Image;
   
   const prompts = {
