@@ -7,7 +7,7 @@ import { ProductData } from "../types";
  * FORCED: Vertical layout and specific price information.
  */
 export const generateOptimizedPrompt = async (data: ProductData): Promise<string> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || 'FAKE_API_KEY_FOR_DEVELOPMENT' });
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
   try {
     const parts: any[] = [];
@@ -32,18 +32,18 @@ export const generateOptimizedPrompt = async (data: ProductData): Promise<string
 
     MANDATORY TEXT ELEMENTS TO BE DESCRIBED IN THE POSTER:
     - Main Product Title: "${data.name}"
-    - List Price Tag: "GÃ­a NiÃªm Yáº¿t: ${data.listPrice}"
-    - Special Offer Tag: "GÃ­a mua tá»« IDECO chá»: ${data.idecoPrice}"
-    - Manufacturer Info: "NhÃ  sáº£n xuáº¥t: ${data.manufacturer}"
+    - List Price Tag: "Gía Niêm Yết: ${data.listPrice}"
+    - Special Offer Tag: "Gía mua từ IDECO chỉ: ${data.idecoPrice}"
+    - Manufacturer Info: "Nhà sản xuất: ${data.manufacturer}"
     - Other Details: ${data.dosage}, ${data.usage}
 
     VISUAL EXECUTION REQUIREMENTS:
     1. STYLE: Photorealistic, 8k resolution, cinematic studio lighting, premium medical aesthetic.
     2. COMPOSITION: Place the product box (modeled after the attached image) as the central focus. 
-    3. THE PRICE HERO: Describe a premium, eye-catching 3D UI element or glowing badge that displays "GÃ­a mua tá»« IDECO chá»: ${data.idecoPrice}" in bold, large, attractive typography.
-    4. SECONDARY PRICE: Describe the "GÃ­a NiÃªm Yáº¿t: ${data.listPrice}" text placed subtly but clearly near the main price to show the value.
+    3. THE PRICE HERO: Describe a premium, eye-catching 3D UI element or glowing badge that displays "Gía mua từ IDECO chỉ: ${data.idecoPrice}" in bold, large, attractive typography.
+    4. SECONDARY PRICE: Describe the "Gía Niêm Yết: ${data.listPrice}" text placed subtly but clearly near the main price to show the value.
     5. BRANDING: The background should be a high-end pharmacy, a clean laboratory, or a professional minimalist clinic.
-    6. REGULATORY: ${data.isETC ? 'Include a professional red "THUá»C KÃ TOA" stamp in the corner.' : ''}
+    6. REGULATORY: ${data.isETC ? 'Include a professional red "THUỐC KÊ TOA" stamp in the corner.' : ''}
     
     IMPORTANT: Do not mention "9:16" or "16:9". Simply describe it as a "Vertical Poster" and ensure all price details above are integrated into the visual description.
     
@@ -72,7 +72,7 @@ export const processProductImageAI = async (
   mimeType: string, 
   task: 'remove-bg' | 'make-3d'
 ): Promise<string> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || 'FAKE_API_KEY_FOR_DEVELOPMENT' });
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const data = base64Image.includes(',') ? base64Image.split(',')[1] : base64Image;
   
   const prompts = {

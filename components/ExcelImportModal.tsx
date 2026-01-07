@@ -1,5 +1,5 @@
 
-import { AlertCircle, ArrowRight, Check, FileText, RefreshCw, Save, Search, Table, Upload, X, Trash2 } from 'lucide-react';
+import { AlertCircle, ArrowRight, Check, FileText, RefreshCw, Save, Search, Table, Upload, X, FilePlus } from 'lucide-react';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
 import { ExcelMapping, ProductData } from '../types';
@@ -44,7 +44,7 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Load saved data on open
+  // Sync state with props when modal opens or saved data changes
   useEffect(() => {
     if (isOpen) {
         if (savedData && savedData.length > 0) {
@@ -98,6 +98,8 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
             defval: '' 
         });
         
+        // Reset selections when new data loads
+        setSelectedIndices(new Set());
         setData(jsonData);
         
         // Auto-mapping logic
@@ -121,16 +123,16 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
       }
     };
     reader.readAsBinaryString(file);
+    e.target.value = ''; // Reset input to allow re-uploading the same file
   };
 
-  const handleResetData = () => {
-    if (confirm("Bạn có chắc muốn xóa dữ liệu cũ để tải file mới?")) {
-        setData([]);
-        setColumns([]);
-        setMapping({ name: '', dosage: '', usage: '', listPrice: '', idecoPrice: '', manufacturer: '', packaging: '' });
-        setSelectedIndices(new Set());
-        setStep(1);
-        onSave([], { name: '', dosage: '', usage: '', listPrice: '', idecoPrice: '', manufacturer: '', packaging: '' });
+  const handleTriggerFileUpload = () => {
+    if (data.length > 0) {
+        if (confirm("Tải file mới sẽ thay thế danh sách hiện tại. Bạn có muốn tiếp tục?")) {
+             fileInputRef.current?.click();
+        }
+    } else {
+        fileInputRef.current?.click();
     }
   };
 
@@ -205,7 +207,7 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
         aspectRatio: 'vertical'
     }));
     
-    onSave(data, mapping); // Always persist when applying
+    onSave(data, mapping);
     onImport(newProducts, data, mapping);
     onClose();
   };
@@ -223,11 +225,13 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
             <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full transition-colors"><X className="w-5 h-5 text-slate-500" /></button>
         </div>
 
+        {/* Hidden File Input - Placed here to ensure it exists in DOM regardless of step */}
+        <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept=".xlsx, .xls" className="hidden" />
+
         <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
             {step === 1 ? (
                 <div className="h-full flex flex-col items-center justify-center py-20 border-4 border-dashed border-slate-200 rounded-2xl bg-slate-50 hover:bg-slate-100 transition-all cursor-pointer group"
                      onClick={() => fileInputRef.current?.click()}>
-                    <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept=".xlsx, .xls" className="hidden" />
                     <div className="p-6 bg-white rounded-full shadow-lg mb-6 group-hover:scale-110 transition-transform">
                         <Upload className="w-12 h-12 text-emerald-500" />
                     </div>
@@ -250,8 +254,11 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
                              <button onClick={handleSaveConfig} className={`flex items-center gap-2 px-5 py-3 rounded-xl border-2 font-black text-xs transition-all ${saveStatus === 'saved' ? 'bg-green-600 text-white border-green-700' : 'bg-white text-indigo-700 border-indigo-200 hover:bg-indigo-50'}`}>
                                 {saveStatus === 'saved' ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />} {saveStatus === 'saved' ? 'ĐÃ LƯU CẤU HÌNH' : 'LƯU MAPPING'}
                             </button>
-                            <button onClick={handleResetData} className="flex items-center gap-2 px-5 py-3 bg-red-50 text-red-700 border-2 border-red-100 rounded-xl font-black text-xs hover:bg-red-100 transition-all">
-                                <Trash2 className="w-4 h-4" /> TẢI FILE MỚI
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); handleTriggerFileUpload(); }} 
+                                className="flex items-center gap-2 px-5 py-3 bg-blue-50 text-blue-700 border-2 border-blue-100 rounded-xl font-black text-xs hover:bg-blue-100 transition-all shadow-sm"
+                            >
+                                <RefreshCw className="w-4 h-4" /> TẢI FILE MỚI
                             </button>
                         </div>
                     </div>
