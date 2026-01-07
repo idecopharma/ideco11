@@ -5,8 +5,8 @@ import { ResultDisplay } from './components/ResultDisplay';
 import { ExternalToolModal } from './components/ExternalToolModal';
 import { ExcelImportModal } from './components/ExcelImportModal';
 import { ProductData, GeneratedResult, AppState, ExcelMapping } from './types';
-import { generateOptimizedPrompt, processImageWithAI } from './services/geminiService';
-import { PenTool, BrainCircuit, Sparkles, Bot, Table, Image as ImageIcon } from 'lucide-react';
+import { generateOptimizedPrompt, processProductImageAI } from './services/geminiService';
+import { PenTool, BrainCircuit, Table, Image as ImageIcon } from 'lucide-react';
 import useLocalStorage from './hooks/useLocalStorage';
 
 const createEmptyProduct = (id: number): ProductData => ({
@@ -39,14 +39,14 @@ const App: React.FC = () => {
   ]);
   
   const [appState, setAppState] = useState<AppState>(AppState.IDLE);
-  const [imageLoading, setImageLoading] = useState<Record<number, boolean>>({});
+  const [isImageProcessing, setIsImageProcessing] = useState(false);
 
   const [masterLibrary, setMasterLibrary] = useLocalStorage<any[]>('excelMasterLibrary', []);
   const [columnMapping, setColumnMapping] = useLocalStorage<ExcelMapping>('excelColumnMapping', {
     name: '', dosage: '', usage: '', listPrice: '', idecoPrice: '', manufacturer: '', packaging: ''
   });
 
-  const [externalTool, setExternalTool] = useState<{ isOpen: boolean; type: 'gen' | 'mind' | 'image' | null }>({
+  const [externalTool, setExternalTool] = useState<{ isOpen: boolean; type: 'mind' | 'image' | null }>({
     isOpen: false,
     type: null
   });
@@ -58,12 +58,15 @@ const App: React.FC = () => {
   };
 
   const handleImageUpload = (id: number, file: File) => {
+    if (file.size > 5 * 1024 * 1024) {
+      alert("Ảnh quá lớn. Vui lòng chọn ảnh dưới 5MB.");
+      return;
+    }
     const reader = new FileReader();
     reader.onloadend = () => {
-      const base64String = reader.result as string;
       setProducts(prev => prev.map(p => p.id === id ? { 
         ...p, 
-        imageBase64: base64String,
+        imageBase64: reader.result as string,
         mimeType: file.type
       } : p));
     };
@@ -74,23 +77,31 @@ const App: React.FC = () => {
     setProducts(prev => prev.map(p => p.id === id ? { ...p, imageBase64: undefined, mimeType: undefined } : p));
   };
 
-  // AI Image Processing Action
-  const handleAIImageAction = async (id: number, task: 'remove_bg' | 'make_3d') => {
+  const handleProcessImage = async (id: number, task: 'remove-bg' | 'make-3d') => {
     const product = products.find(p => p.id === id);
-    if (!product?.imageBase64 || !product?.mimeType) return;
-
-    setImageLoading(prev => ({ ...prev, [id]: true }));
+    if (!product?.imageBase64 || !product.mimeType) return;
+    
+    setIsImageProcessing(true);
     try {
-      const processedImage = await processImageWithAI(product.imageBase64, product.mimeType, task);
-      setProducts(prev => prev.map(p => p.id === id ? { ...p, imageBase64: processedImage, mimeType: 'image/png' } : p));
+      const processedBase64 = await processProductImageAI(product.imageBase64, product.mimeType, task);
+      setProducts(prev => prev.map(p => p.id === id ? { 
+        ...p, 
+        imageBase64: processedBase64,
+        mimeType: 'image/png'
+      } : p));
     } catch (error) {
-      alert("Lỗi xử lý ảnh bằng AI: " + (error instanceof Error ? error.message : "Vui lòng thử lại."));
+      alert("Lỗi xử lý ảnh: " + (error instanceof Error ? error.message : "Vui lòng thử lại."));
     } finally {
-      setImageLoading(prev => ({ ...prev, [id]: false }));
+      setIsImageProcessing(false);
     }
   };
 
   const handleGenerateAll = async () => {
+    if (!process.env.API_KEY) {
+        alert("Thiếu API Key.");
+        return;
+    }
+
     setAppState(AppState.PROCESSING);
     setResults(prev => prev.map(r => {
         const prod = products.find(p => p.id === r.id);
@@ -127,78 +138,74 @@ const App: React.FC = () => {
   };
 
   const handleApplyProductFromLibrary = (productIndex: number, libraryItem: any) => {
-    const formatPrice = (val: any) => typeof val === 'number' ? val.toLocaleString('vi-VN') + ' đ' : (val || '');
-    const packaging = libraryItem[columnMapping.packaging] ? String(libraryItem[columnMapping.packaging]) : '';
-    
-    setProducts(prev => prev.map(p => p.id === productIndex ? { 
-        ...p, 
-        name: String(libraryItem[columnMapping.name] || ''),
-        dosage: String(libraryItem[columnMapping.dosage] || ''),
-        usage: String(libraryItem[columnMapping.usage] || ''),
-        listPrice: formatPrice(libraryItem[columnMapping.listPrice]) + (packaging ? ` / ${packaging}` : ''),
-        idecoPrice: formatPrice(libraryItem[columnMapping.idecoPrice]) + (packaging ? ` / ${packaging}` : ''),
-        manufacturer: String(libraryItem[columnMapping.manufacturer] || ''),
-    } : p));
+    const formatPriceString = (val: any, pack: any) => {
+        if (val === undefined || val === null || val === '') return '';
+        let p = '';
+        if (typeof val === 'number') {
+            p = val.toLocaleString('vi-VN');
+        } else {
+            const cleanNum = String(val).replace(/[^0-9]/g, "");
+            p = (cleanNum && !isNaN(parseInt(cleanNum))) ? parseInt(cleanNum).toLocaleString('vi-VN') : String(val).trim();
+        }
+        if (p && !p.toLowerCase().includes('đồng')) p += ' đồng';
+        return (pack && String(pack).trim()) ? `${p}/ ${String(pack).trim()}` : p;
+    };
+
+    const newProductData: Partial<ProductData> = {
+        name: String(libraryItem[columnMapping.name] || '').trim(),
+        dosage: String(libraryItem[columnMapping.dosage] || '').trim(),
+        usage: String(libraryItem[columnMapping.usage] || '').trim(),
+        listPrice: formatPriceString(libraryItem[columnMapping.listPrice], libraryItem[columnMapping.packaging]),
+        idecoPrice: formatPriceString(libraryItem[columnMapping.idecoPrice], libraryItem[columnMapping.packaging]),
+        manufacturer: String(libraryItem[columnMapping.manufacturer] || '').trim(),
+    };
+
+    setProducts(prev => prev.map(p => p.id === productIndex ? { ...p, ...newProductData } : p));
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 p-4 md:p-8 font-sans">
+    <div className="min-h-screen bg-slate-100 p-4 md:p-8">
       <div className="max-w-7xl mx-auto space-y-6">
         <header className="flex flex-col md:flex-row items-center justify-between pb-4 gap-4">
           <div className="flex items-center gap-3">
-            <div className="bg-indigo-600 text-white p-2.5 rounded-xl shadow-lg">
-              <PenTool className="w-6 h-6" />
-            </div>
+            <div className="bg-indigo-600 text-white p-2.5 rounded-xl shadow-lg"><PenTool className="w-6 h-6" /></div>
             <div>
-              <h1 className="text-2xl md:text-3xl font-extrabold text-slate-800 tracking-tight">Pharma Poster AI</h1>
-              <p className="text-slate-500 text-sm font-medium">Tạo prompt & xử lý ảnh dược phẩm 3D</p>
+              <h1 className="text-2xl md:text-3xl font-extrabold text-slate-800">Pharma Prompt AI</h1>
+              <p className="text-slate-500 text-sm font-medium">Xử lý ảnh & tạo Prompt hàng loạt (3 SP)</p>
             </div>
           </div>
+
           <div className="flex gap-3">
-             <button onClick={() => setExcelModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-white text-emerald-700 font-semibold rounded-lg shadow-sm border border-emerald-200 hover:bg-emerald-50 transition-all"><Table className="w-5 h-5" /><span>Nhập Excel</span></button>
-             <button onClick={() => setExternalTool({ isOpen: true, type: 'image' })} className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-pink-500 to-rose-500 text-white font-semibold rounded-lg shadow-md transition-all"><ImageIcon className="w-5 h-5" /><span>LM Arena</span></button>
-             <button onClick={() => setExternalTool({ isOpen: true, type: 'mind' })} className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-semibold rounded-lg shadow-md transition-all"><BrainCircuit className="w-5 h-5" /><span>Mind</span></button>
+            <button onClick={() => setExcelModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-white text-emerald-700 font-bold rounded-lg shadow border border-emerald-200 hover:bg-emerald-50 transition-all active:scale-95"><Table className="w-5 h-5" /> Excel</button>
+            <button onClick={() => window.open('https://lmarena.ai/', '_blank')} className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-pink-500 to-rose-500 text-white font-bold rounded-lg shadow-md hover:shadow-lg transition-all active:scale-95"><ImageIcon className="w-5 h-5" /> Tạo Ảnh</button>
+            <button onClick={() => setExternalTool({ isOpen: true, type: 'mind' })} className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold rounded-lg shadow-md hover:shadow-lg transition-all active:scale-95"><BrainCircuit className="w-5 h-5" /> Mind</button>
           </div>
         </header>
 
-        <main className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          <div className="lg:col-span-7 h-[850px]">
+        <main className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          <div className="lg:col-span-7">
             <ProductForm 
-              products={products}
-              activeTab={activeTab}
-              onTabChange={setActiveTab}
-              onChange={handleFieldChange}
-              onImageUpload={handleImageUpload}
-              onRemoveImage={handleRemoveImage}
-              onSubmit={handleGenerateAll}
-              isProcessing={appState === AppState.PROCESSING}
-              masterLibrary={masterLibrary}
-              columnMapping={columnMapping}
-              onApplyLibraryProduct={handleApplyProductFromLibrary}
-              imageLoading={imageLoading[activeTab]}
-              onAIAction={(task) => handleAIImageAction(activeTab, task)}
+              products={products} activeTab={activeTab} onTabChange={setActiveTab} onChange={handleFieldChange}
+              onImageUpload={handleImageUpload} onRemoveImage={handleRemoveImage} onSubmit={handleGenerateAll}
+              onProcessImage={handleProcessImage} isProcessing={appState === AppState.PROCESSING} isImageProcessing={isImageProcessing}
+              masterLibrary={masterLibrary} columnMapping={columnMapping} onApplyLibraryProduct={handleApplyProductFromLibrary}
             />
           </div>
-          <div className="lg:col-span-5 h-[850px]">
+          <div className="lg:col-span-5">
             <ResultDisplay results={results} appState={appState} />
           </div>
         </main>
       </div>
 
       <ExternalToolModal 
-        isOpen={externalTool.isOpen} 
-        onClose={() => setExternalTool({ isOpen: false, type: null })}
-        url="https://lmarena.ai/"
-        title="LM Arena AI"
+        isOpen={externalTool.isOpen} onClose={() => setExternalTool({ isOpen: false, type: null })}
+        url={externalTool.type === 'mind' ? 'https://geminigen.ai' : ''} title="GeminiGen AI" icon={<BrainCircuit className="w-5 h-5"/>}
       />
       
       <ExcelImportModal 
-        isOpen={excelModalOpen} 
-        onClose={() => setExcelModalOpen(false)}
-        onImport={handleExcelImport}
-        onSave={(data, mapping) => { setMasterLibrary(data); setColumnMapping(mapping); }}
-        savedData={masterLibrary}
-        savedMapping={columnMapping}
+        isOpen={excelModalOpen} onClose={() => setExcelModalOpen(false)}
+        onImport={handleExcelImport} onSave={(rawData, mapping) => { setMasterLibrary(rawData); setColumnMapping(mapping); }}
+        savedData={masterLibrary} savedMapping={columnMapping}
       />
     </div>
   );

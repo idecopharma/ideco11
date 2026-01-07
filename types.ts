@@ -112,5 +112,18 @@ export interface ExcelMapping {
   listPrice: string;
   idecoPrice: string;
   manufacturer: string;
-  packaging: string; // New field for packaging specification
+  packaging: string; // Added field for packaging specification
 }
+
+export interface GenerationSettings {
+  aspectRatio: string;
+  style: string;
+}
+
+export interface GeneratedImage {
+  id: string;
+  url: string;
+  prompt: string;
+}
+
+export type LoadingState = 'idle' | 'generating' | 'enhancing';

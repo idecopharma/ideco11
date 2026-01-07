@@ -1,8 +1,8 @@
 
-import React, { useState, useRef, useMemo, useEffect } from 'react';
+import { AlertCircle, ArrowRight, Check, FileText, RefreshCw, Save, Search, Table, Upload, X } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
-import { Upload, X, ArrowRight, Table, Check, AlertCircle, Search, RefreshCw, FileText, Save } from 'lucide-react';
-import { ProductData, ExcelMapping } from '../types';
+import { ExcelMapping, ProductData } from '../types';
 
 interface ExcelImportModalProps {
   isOpen: boolean;
@@ -18,15 +18,22 @@ type ExcelRow = Record<string, any>;
 const MAPPING_FIELDS: { key: keyof ExcelMapping; label: string }[] = [
   { key: 'name', label: 'Tên Thuốc' },
   { key: 'dosage', label: 'Hàm Lượng' },
+  { key: 'packaging', label: 'Quy cách đóng gói' },
   { key: 'usage', label: 'Công Dụng' },
-  { key: 'packaging', label: 'Quy Cách (Đóng gói)' }, // Added packaging field
-  { key: 'listPrice', label: 'Giá Niêm Yết' },
-  { key: 'idecoPrice', label: 'Giá IDECO' },
+  { key: 'listPrice', label: 'Giá Niêm Yết (Tiêu đề 2)' },
+  { key: 'idecoPrice', label: 'Giá IDECO (Tiêu đề 3)' },
   { key: 'manufacturer', label: 'Nhà Sản Xuất' },
 ];
 
-export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({ isOpen, onClose, onImport, onSave, savedData = [], savedMapping }) => {
-  const [step, setStep] = useState<1 | 2>(1); // 1: Upload, 2: Map & Select
+export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({ 
+  isOpen, 
+  onClose, 
+  onImport, 
+  onSave, 
+  savedData = [], 
+  savedMapping 
+}) => {
+  const [step, setStep] = useState<1 | 2>(1);
   const [data, setData] = useState<ExcelRow[]>([]);
   const [columns, setColumns] = useState<string[]>([]);
   const [mapping, setMapping] = useState<ExcelMapping>({
@@ -35,32 +42,23 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({ isOpen, onCl
   const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
   const [isAutoLoaded, setIsAutoLoaded] = useState(false);
-  const [isSaved, setIsSaved] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Initialize from saved data when opened
   useEffect(() => {
     if (isOpen) {
         if (savedData && savedData.length > 0) {
             setData(savedData);
-            // Derive columns from the first row of saved data
             const cols = Object.keys(savedData[0]);
             setColumns(cols);
-            
-            if (savedMapping) {
-                // Ensure legacy saved mappings have the packaging field
-                setMapping({ ...savedMapping, packaging: savedMapping.packaging || '' });
-            }
-            
+            if (savedMapping) setMapping(savedMapping);
             setStep(2);
             setIsAutoLoaded(true);
-            setIsSaved(true); // Since it came from saved storage, it is 'saved'
         } else {
-            // No saved data, start at upload
             reset();
         }
     }
-  }, [isOpen]); // Depend only on isOpen to avoid resetting during interaction
+  }, [isOpen]); 
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -73,37 +71,63 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({ isOpen, onCl
         const wb = XLSX.read(bstr, { type: 'binary' });
         const wsname = wb.SheetNames[0];
         const ws = wb.Sheets[wsname];
-        const jsonData = XLSX.utils.sheet_to_json<ExcelRow>(ws, { header: 1 });
         
-        if (jsonData.length > 0) {
-          const headers = jsonData[0] as string[];
-          const cleanHeaders = headers.map(h => String(h).trim());
-          setColumns(cleanHeaders);
+        // 1. Get raw rows to detect headers
+        const rawRows = XLSX.utils.sheet_to_json<any[]>(ws, { header: 1 });
+        if (rawRows.length === 0) return;
+
+        // Find the first row that actually has data (header row)
+        const headerIndex = rawRows.findIndex(row => row && row.length > 0);
+        if (headerIndex === -1) return;
+
+        const headerRow = rawRows[headerIndex];
+        
+        // Make headers unique to ensure correct mapping
+        const counts: Record<string, number> = {};
+        const uniqueHeaders = headerRow.map((h: any, idx: number) => {
+            let name = String(h || '').trim();
+            if (!name) name = `Column_${idx + 1}`;
+            
+            if (counts[name]) {
+                counts[name]++;
+                name = `${name}_${counts[name]}`;
+            } else {
+                counts[name] = 1;
+            }
+            return name;
+        });
+        
+        setColumns(uniqueHeaders);
+        
+        // 2. Parse data using these EXACT unique headers as keys
+        // range: headerIndex + 1 skips the header row itself in the data
+        const jsonData = XLSX.utils.sheet_to_json<ExcelRow>(ws, { 
+            header: uniqueHeaders,
+            range: headerIndex + 1,
+            defval: '' 
+        });
+        
+        setData(jsonData);
           
-          const rows = XLSX.utils.sheet_to_json<ExcelRow>(ws, { header: cleanHeaders });
-          setData(rows);
-          
-          // Auto-guess mapping
-          const newMapping: ExcelMapping = { name: '', dosage: '', usage: '', listPrice: '', idecoPrice: '', manufacturer: '', packaging: '' };
-          cleanHeaders.forEach(col => {
+        const newMapping: ExcelMapping = { name: '', dosage: '', usage: '', listPrice: '', idecoPrice: '', manufacturer: '', packaging: '' };
+        uniqueHeaders.forEach(col => {
              const lower = col.toLowerCase();
-             if (lower.includes('tên thuốc')) newMapping.name = col;
-             else if (lower.includes('hàm lượng') || lower.includes('nồng độ')) newMapping.dosage = col;
+             if (lower.includes('tên thuốc') || lower === 'tên hàng' || lower.includes('biệt dược')) newMapping.name = col;
+             else if (lower.includes('hàm lượng')) newMapping.dosage = col;
+             else if (lower.includes('quy cách') || lower.includes('đóng gói')) newMapping.packaging = col;
              else if (lower.includes('công dụng')) newMapping.usage = col;
-             else if (lower.includes('quy cách') || lower.includes('đóng gói')) newMapping.packaging = col; // Auto-guess packaging
-             else if (lower.includes('đơn giá hộp') || lower.includes('giá niêm yết')) newMapping.listPrice = col;
-             else if (lower.includes('giá mua 6') || lower.includes('ideco')) newMapping.idecoPrice = col;
-             else if (lower.includes('đơn vị sx') || lower.includes('nhà sản xuất')) newMapping.manufacturer = col;
-          });
-          setMapping(newMapping);
-          
-          setStep(2);
-          setIsAutoLoaded(false);
-          setIsSaved(false); // New upload is not saved yet
-        }
+             else if (lower.includes('niêm yết') || lower.includes('đơn giá hộp') || lower.includes('giá bán')) newMapping.listPrice = col;
+             else if (lower.includes('giá mua') || lower.includes('giá ideco') || lower.includes('giá đại lý') || lower.includes('chiết khấu')) newMapping.idecoPrice = col;
+             else if (lower.includes('nhà sản xuất') || lower.includes('đơn vị sx')) newMapping.manufacturer = col;
+        });
+        
+        setMapping(newMapping);
+        setStep(2);
+        setIsAutoLoaded(false);
+        setSaveStatus('idle');
       } catch (error) {
-        console.error("Error parsing excel", error);
-        alert("Lỗi đọc file Excel. Vui lòng thử lại.");
+        console.error("Excel Error:", error);
+        alert("Lỗi đọc file Excel. Vui lòng kiểm tra lại định dạng file.");
       }
     };
     reader.readAsBinaryString(file);
@@ -111,21 +135,26 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({ isOpen, onCl
 
   const handleMappingChange = (field: keyof ExcelMapping, column: string) => {
     setMapping(prev => ({ ...prev, [field]: column }));
-    setIsSaved(false); // Mapping changed, status is unsaved
+    setSaveStatus('idle');
   };
 
   const toggleRowSelection = (originalIndex: number) => {
     const newSet = new Set(selectedIndices);
     if (newSet.has(originalIndex)) newSet.delete(originalIndex);
-    else newSet.add(originalIndex);
+    else {
+        if (newSet.size >= 3) {
+            alert("Bạn chỉ có thể chọn tối đa 3 sản phẩm.");
+            return;
+        }
+        newSet.add(originalIndex);
+    }
     setSelectedIndices(newSet);
   };
 
-  // Filter data based on search
   const filteredData = useMemo(() => {
     if (!searchQuery.trim()) return data.map((row, idx) => ({ row, originalIndex: idx }));
     const lowerQuery = searchQuery.toLowerCase();
-    const searchCol = mapping.name || columns[0]; // Search in mapped Name col or first col
+    const searchCol = mapping.name || columns[0];
     return data
         .map((row, idx) => ({ row, originalIndex: idx }))
         .filter(({ row }) => {
@@ -134,51 +163,80 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({ isOpen, onCl
         });
   }, [data, searchQuery, mapping.name, columns]);
 
-  const handleManualSave = () => {
-      onSave(data, mapping);
-      setIsSaved(true);
+  const handleSaveOnly = () => {
+    if (data.length === 0) return;
+    setSaveStatus('saving');
+    onSave(data, mapping);
+    setTimeout(() => {
+        setSaveStatus('saved');
+        setTimeout(() => setSaveStatus('idle'), 3000);
+    }, 500);
   };
 
   const handleApply = () => {
     const selectedRows = data.filter((_, idx) => selectedIndices.has(idx));
     if (selectedRows.length === 0) {
-      alert("Vui lòng chọn ít nhất một sản phẩm từ danh sách.");
+      alert("Vui lòng chọn ít nhất một sản phẩm.");
       return;
     }
     
-    const formatPrice = (val: any) => {
-        if (typeof val === 'number') return val.toLocaleString('vi-VN') + ' đ';
-        return String(val);
+    const formatPriceString = (priceVal: any, packVal: any) => {
+        if (priceVal === undefined || priceVal === null || String(priceVal).trim() === '') return '';
+        
+        let p = '';
+        // Handle pure numbers
+        if (typeof priceVal === 'number') {
+            p = priceVal.toLocaleString('vi-VN');
+        } else {
+            // Handle strings that might look like "73000" or "73.000" or "73,000"
+            const strVal = String(priceVal).trim();
+            // Remove everything except digits and dots/commas to verify if it's a number
+            const cleanNum = strVal.replace(/[^0-9]/g, "");
+            
+            if (cleanNum && !isNaN(parseInt(cleanNum))) {
+                // If it looks like a number, parse it. 
+                // Note: This logic assumes input is effectively an integer amount.
+                p = parseInt(cleanNum).toLocaleString('vi-VN');
+            } else {
+                // Keep strictly non-numeric strings (like "Liên hệ") as is
+                p = strVal;
+            }
+        }
+
+        if (p && !p.toLowerCase().includes('đồng') && /^[0-9.,]+$/.test(p.replace(/[^0-9.,]/g, ""))) {
+             p += ' đồng';
+        }
+
+        if (packVal && String(packVal).trim()) {
+            return `${p}/ ${String(packVal).trim()}`;
+        }
+        return p;
     };
 
     const newProducts: ProductData[] = selectedRows.map((row, idx) => {
-      // Get basic price string
-      const rawListPrice = row[mapping.listPrice] ? formatPrice(row[mapping.listPrice]) : '';
-      const rawIdecoPrice = row[mapping.idecoPrice] ? formatPrice(row[mapping.idecoPrice]) : '';
-      
-      // Get packaging spec
-      const packaging = row[mapping.packaging] ? String(row[mapping.packaging]) : '';
-      
-      // Combine: Price / Packaging
-      const listPrice = rawListPrice + (packaging && rawListPrice ? ` / ${packaging}` : '');
-      const idecoPrice = rawIdecoPrice + (packaging && rawIdecoPrice ? ` / ${packaging}` : '');
+      const name = row[mapping.name] ? String(row[mapping.name]).trim() : '';
+      const dosage = row[mapping.dosage] ? String(row[mapping.dosage]).trim() : '';
+      const usage = row[mapping.usage] ? String(row[mapping.usage]).trim() : '';
+      const listPrice = formatPriceString(row[mapping.listPrice], row[mapping.packaging]);
+      const idecoPrice = formatPriceString(row[mapping.idecoPrice], row[mapping.packaging]);
+      const manufacturer = row[mapping.manufacturer] ? String(row[mapping.manufacturer]).trim() : '';
 
       return {
         id: idx + 1,
-        name: row[mapping.name] ? String(row[mapping.name]) : '',
-        dosage: row[mapping.dosage] ? String(row[mapping.dosage]) : '',
-        usage: row[mapping.usage] ? String(row[mapping.usage]) : '',
-        listPrice: listPrice,
-        idecoPrice: idecoPrice,
-        manufacturer: row[mapping.manufacturer] ? String(row[mapping.manufacturer]) : '',
+        name,
+        dosage,
+        usage,
+        listPrice,
+        idecoPrice,
+        manufacturer,
         isETC: false,
         description: '',
         aspectRatio: 'vertical'
       };
     });
     
-    // Pass processed products AND raw data + mapping for future use
-    onImport(newProducts.slice(0, 3), data, mapping);
+    onSave(data, mapping);
+    onImport(newProducts, data, mapping);
     onClose();
   };
   
@@ -190,211 +248,158 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({ isOpen, onCl
       setSelectedIndices(new Set());
       setSearchQuery('');
       setIsAutoLoaded(false);
-      setIsSaved(false);
+      setSaveStatus('idle');
   };
 
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden">
-        
-        {/* Header */}
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-[95vw] md:max-w-6xl max-h-[95vh] flex flex-col overflow-hidden">
         <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50">
             <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                <div className="p-2 bg-green-100 text-green-700 rounded-lg">
-                    <Table className="w-5 h-5" />
-                </div>
-                {step === 1 ? 'Nhập Dữ Liệu Từ Excel' : 'Chọn Sản Phẩm'}
+                <div className="p-2 bg-emerald-100 text-emerald-700 rounded-lg"><Table className="w-5 h-5" /></div>
+                {step === 1 ? 'Nhập Dữ Liệu Từ Excel' : 'Soi Chiếu & Chọn Sản Phẩm'}
             </h3>
-            <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-2 hover:bg-slate-100 rounded-full transition-colors">
-                <X className="w-5 h-5" />
-            </button>
+            <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-2 hover:bg-slate-100 rounded-full"><X className="w-5 h-5" /></button>
         </div>
-
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
+        <div className="flex-1 overflow-y-auto p-4 md:p-6 custom-scrollbar">
             {step === 1 ? (
-                <div className="h-full flex flex-col items-center justify-center py-12 border-2 border-dashed border-slate-300 rounded-xl bg-slate-50 hover:bg-slate-100 transition-colors cursor-pointer"
+                <div className="h-full flex flex-col items-center justify-center py-16 border-2 border-dashed border-slate-300 rounded-xl bg-slate-50 hover:bg-slate-100 transition-colors cursor-pointer"
                      onClick={() => fileInputRef.current?.click()}>
                     <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept=".xlsx, .xls" className="hidden" />
                     <Upload className="w-16 h-16 text-slate-300 mb-4" />
-                    <p className="text-lg font-medium text-slate-600">Click để tải file Excel (.xlsx, .xls)</p>
-                    <p className="text-sm text-slate-400 mt-2">Hỗ trợ bảng mã Unicode (UTF-8)</p>
-                    <div className="mt-8 text-xs text-slate-400 text-center max-w-md">
-                        <p className="font-semibold mb-1">Cấu trúc đề xuất:</p>
-                        TT | Tên thuốc | Hàm lượng | Công dụng | Đơn giá | Nhà SX | Quy cách
-                    </div>
+                    <p className="text-xl font-bold text-slate-600">Click để tải file Excel (.xlsx, .xls)</p>
+                    <p className="text-sm text-slate-400 mt-2">Dữ liệu sẽ được bảo mật và chỉ xử lý trên trình duyệt của bạn</p>
                 </div>
             ) : (
                 <div className="space-y-6">
-                    {/* Auto-load Banner */}
-                    {isAutoLoaded && (
-                        <div className="bg-blue-50 border border-blue-100 p-3 rounded-lg flex justify-between items-center text-sm text-blue-700">
-                            <span className="flex items-center gap-2">
-                                <FileText className="w-4 h-4" />
-                                Đã tự động tải danh sách từ lần nhập trước.
-                            </span>
-                            <button 
-                                onClick={reset}
-                                className="text-blue-600 hover:text-blue-800 font-semibold underline"
-                            >
-                                Nhập file khác
+                    <div className="bg-slate-50 p-5 rounded-xl border-2 border-emerald-100 shadow-sm">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
+                            <h4 className="font-black text-emerald-800 flex items-center gap-2 text-sm uppercase tracking-wider">
+                                <ArrowRight className="w-4 h-4" /> 
+                                BƯỚC 1: CẤU HÌNH CỘT DỮ LIỆU
+                            </h4>
+                            <button onClick={handleSaveOnly} className={`flex items-center gap-2 px-4 py-2 rounded-lg border text-xs font-bold transition-all ${saveStatus === 'saved' ? 'bg-green-600 text-white border-green-700' : 'bg-white text-indigo-700 border-indigo-200 hover:bg-indigo-50'}`}>
+                                {saveStatus === 'saved' ? <Check className="w-3 h-3" /> : <Save className="w-3 h-3" />} {saveStatus === 'saved' ? 'ĐÃ LƯU' : 'LƯU CẤU HÌNH'}
                             </button>
                         </div>
-                    )}
-
-                    {/* Mapping Section */}
-                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-                        <h4 className="font-semibold text-slate-700 mb-3 flex items-center gap-2">
-                             <ArrowRight className="w-4 h-4 text-indigo-500" /> 
-                             Bước 1: So chiếu cột dữ liệu
-                        </h4>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                             {MAPPING_FIELDS.map(field => (
-                                <div key={field.key}>
-                                    <label className="block text-xs font-semibold text-slate-500 mb-1">{field.label}</label>
+                                <div key={field.key} className="flex flex-col">
+                                    <label className="text-[10px] font-extrabold text-slate-500 mb-1.5 uppercase tracking-tighter flex justify-between">
+                                        {field.label}
+                                        {mapping[field.key] && <span className="text-emerald-600">✓</span>}
+                                    </label>
                                     <select 
-                                        className="w-full text-sm border-slate-300 rounded-lg shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                                        value={mapping[field.key] || ''}
+                                        className={`w-full text-xs font-bold border rounded-lg shadow-sm focus:ring-2 focus:ring-emerald-500 bg-white p-2 transition-all ${mapping[field.key] ? 'border-emerald-400 bg-emerald-50/50 text-emerald-900' : 'border-slate-200'}`} 
+                                        value={mapping[field.key] || ''} 
                                         onChange={(e) => handleMappingChange(field.key, e.target.value)}
                                     >
-                                        <option value="">-- Không chọn --</option>
-                                        {columns.map(col => (
-                                            <option key={col} value={col}>{col}</option>
-                                        ))}
+                                        <option value="">-- Chọn cột --</option>
+                                        {columns.map(col => (<option key={col} value={col}>{col}</option>))}
                                     </select>
                                 </div>
                             ))}
                         </div>
+                        <p className="text-[10px] text-slate-400 mt-3 italic">* Vui lòng chọn chính xác cột "Đơn giá hộp" hoặc "Giá chiết khấu" cho mục Giá niêm yết/IDECO để hệ thống lấy đúng dữ liệu.</p>
                     </div>
 
-                    {/* Data Table with Search */}
-                    <div className="space-y-3">
-                        <div className="flex flex-col md:flex-row justify-between items-end md:items-center gap-3">
-                            <h4 className="font-semibold text-slate-700 flex items-center gap-2">
-                                <div className="flex items-center gap-2">
-                                    <Check className="w-4 h-4 text-indigo-500" /> 
-                                    Bước 2: Chọn sản phẩm (Tối đa 3)
-                                </div>
-                                <span className="text-xs font-normal text-slate-500 bg-white px-2 py-0.5 rounded border border-slate-200">Đã chọn: {selectedIndices.size}</span>
+                    <div className="space-y-4">
+                        <div className="flex flex-col md:flex-row justify-between items-end md:items-center gap-4">
+                            <h4 className="font-black text-slate-700 flex items-center gap-2 text-sm uppercase tracking-widest">
+                                <Check className="w-5 h-5 text-emerald-500" /> BƯỚC 2: CHỌN SẢN PHẨM (Tối đa 3)
                             </h4>
-                            
-                            {/* Search Input */}
-                            <div className="relative w-full md:w-64">
-                                <input
-                                    type="text"
-                                    placeholder="Tìm tên thuốc..."
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                    className="w-full pl-9 pr-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
-                                />
-                                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2" />
+                            <div className="relative w-full md:w-80">
+                                <input type="text" placeholder="Tìm kiếm nhanh sản phẩm..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-10 pr-4 py-2 text-sm border-2 border-slate-200 rounded-lg focus:border-emerald-500 outline-none shadow-sm" />
+                                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
                             </div>
                         </div>
 
-                        <div className="border border-slate-200 rounded-lg overflow-hidden">
-                            <div className="overflow-x-auto max-h-[300px]">
-                                <table className="w-full text-sm text-left">
-                                    <thead className="bg-slate-100 text-slate-600 font-semibold sticky top-0 z-10">
+                        {/* TABLE WITH HORIZONTAL SCROLL - Enhanced Visuals */}
+                        <div className="border border-slate-300 rounded-xl shadow-lg bg-white overflow-hidden flex flex-col">
+                             <div className="overflow-x-auto w-full custom-scrollbar" style={{ maxHeight: '45vh' }}>
+                                <table className="w-full text-sm text-left border-collapse min-w-max">
+                                    <thead className="bg-slate-800 text-white font-bold sticky top-0 z-10 uppercase text-[10px] tracking-wide shadow-md">
                                         <tr>
-                                            <th className="p-3 w-10 text-center">
-                                                <input type="checkbox" disabled />
-                                            </th>
+                                            <th className="p-3 w-14 text-center border-r border-slate-700 sticky left-0 bg-slate-800 z-20">STT</th>
+                                            <th className="p-3 w-14 text-center border-r border-slate-700 sticky left-14 bg-slate-800 z-20">CHỌN</th>
                                             {columns.map(col => (
-                                                <th key={col} className="p-3 whitespace-nowrap">{col}</th>
+                                                <th key={col} className={`p-3 border-r border-slate-700 whitespace-nowrap px-4 ${Object.values(mapping).includes(col) ? 'bg-emerald-800 text-emerald-100' : ''}`}>
+                                                    {col}
+                                                </th>
                                             ))}
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100">
-                                        {filteredData.length > 0 ? (
-                                            filteredData.map(({ row, originalIndex }) => (
-                                                <tr 
-                                                    key={originalIndex} 
-                                                    className={`hover:bg-indigo-50 cursor-pointer transition-colors ${selectedIndices.has(originalIndex) ? 'bg-indigo-50' : ''}`}
-                                                    onClick={() => toggleRowSelection(originalIndex)}
-                                                >
-                                                    <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
-                                                        <input 
-                                                            type="checkbox" 
-                                                            checked={selectedIndices.has(originalIndex)}
-                                                            onChange={() => toggleRowSelection(originalIndex)}
-                                                            className="rounded text-indigo-600 focus:ring-indigo-500"
-                                                        />
-                                                    </td>
-                                                    {columns.map(col => (
-                                                        <td key={`${originalIndex}-${col}`} className="p-3 whitespace-nowrap max-w-[200px] truncate">
-                                                            {row[col]}
-                                                        </td>
-                                                    ))}
-                                                </tr>
-                                            ))
-                                        ) : (
-                                            <tr>
-                                                <td colSpan={columns.length + 1} className="p-8 text-center text-slate-500">
-                                                    Không tìm thấy kết quả phù hợp.
+                                        {filteredData.length > 0 ? filteredData.map(({ row, originalIndex }) => (
+                                            <tr 
+                                                key={originalIndex} 
+                                                className={`hover:bg-indigo-50 transition-colors cursor-pointer ${selectedIndices.has(originalIndex) ? 'bg-emerald-50/60' : ''}`} 
+                                                onClick={() => toggleRowSelection(originalIndex)}
+                                            >
+                                                <td className="p-3 text-center text-slate-400 font-mono text-xs border-r border-slate-100 sticky left-0 bg-white z-10 group-hover:bg-indigo-50">{originalIndex + 1}</td>
+                                                <td className="p-3 text-center border-r border-slate-100 sticky left-14 bg-white z-10 group-hover:bg-indigo-50" onClick={(e) => e.stopPropagation()}>
+                                                    <input 
+                                                        type="checkbox" 
+                                                        checked={selectedIndices.has(originalIndex)} 
+                                                        onChange={() => toggleRowSelection(originalIndex)} 
+                                                        className="w-5 h-5 rounded border-2 border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer" 
+                                                    />
                                                 </td>
+                                                {columns.map(col => (
+                                                    <td key={`${originalIndex}-${col}`} className={`p-3 border-r border-slate-100 whitespace-nowrap max-w-[300px] truncate px-4 ${col === mapping.name ? 'font-bold text-slate-900' : 'text-slate-600'} ${selectedIndices.has(originalIndex) ? 'bg-emerald-50/60' : ''}`}>
+                                                        {String(row[col] ?? '')}
+                                                    </td>
+                                                ))}
                                             </tr>
+                                        )) : (
+                                            <tr><td colSpan={columns.length + 2} className="p-12 text-center text-slate-400 italic">Không tìm thấy dữ liệu.</td></tr>
                                         )}
                                     </tbody>
                                 </table>
                             </div>
-                        </div>
-                         {selectedIndices.size > 3 && (
-                            <div className="mt-2 text-xs text-amber-600 flex items-center gap-1">
-                                <AlertCircle className="w-3 h-3" />
-                                Lưu ý: Chỉ 3 sản phẩm đầu tiên được chọn sẽ được nhập vào form.
+                            {/* Horizontal Scroll Tip - Always Visible */}
+                            <div className="bg-slate-100 px-4 py-2 border-t border-slate-200 text-[10px] text-slate-500 font-bold flex items-center justify-between">
+                                <span className="flex items-center gap-2"><ArrowRight className="w-3 h-3 animate-bounce-x text-emerald-600" /> Kéo thanh trượt ngang để xem các cột bị ẩn</span>
+                                <span>Tổng: {data.length} dòng</span>
                             </div>
-                        )}
+                        </div>
                     </div>
                 </div>
             )}
         </div>
-
-        {/* Footer */}
-        <div className="px-6 py-4 border-t border-slate-200 bg-slate-50 flex justify-end gap-3">
-             {step === 2 && (
-                <>
+        <div className="px-6 py-4 border-t border-slate-200 bg-white flex justify-between items-center shrink-0">
+            <div className="flex items-center gap-3">
+                {selectedIndices.size > 0 && (
+                    <div className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wide shadow-md animate-in slide-in-from-left">
+                        <Check className="w-3.5 h-3.5" /> Đã chọn {selectedIndices.size}
+                    </div>
+                )}
+            </div>
+            <div className="flex gap-3">
+                <button onClick={onClose} className="px-5 py-2.5 text-sm font-bold text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-all border border-slate-200">ĐÓNG</button>
+                {step === 2 && (
                     <button 
-                        onClick={reset}
-                        className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200 rounded-lg transition-colors flex items-center gap-2"
+                        onClick={handleApply} 
+                        disabled={selectedIndices.size === 0} 
+                        className="px-8 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-lg shadow-indigo-200 disabled:opacity-50 disabled:grayscale flex items-center gap-2 uppercase tracking-wide transition-all active:scale-95"
                     >
-                        <RefreshCw className="w-4 h-4" />
-                        Nhập File Khác
+                        NHẬP DỮ LIỆU <Check className="w-4 h-4" />
                     </button>
-                    <button 
-                        onClick={handleManualSave}
-                        disabled={isSaved}
-                        className={`px-4 py-2 text-sm font-bold rounded-lg transition-colors flex items-center gap-2 border 
-                            ${isSaved 
-                                ? 'bg-green-50 text-green-700 border-green-200 cursor-default' 
-                                : 'bg-white text-emerald-600 border-emerald-600 hover:bg-emerald-50'
-                            }`}
-                    >
-                        {isSaved ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}
-                        {isSaved ? 'Đã Lưu Dữ Liệu' : 'Lưu Dữ Liệu'}
-                    </button>
-                </>
-             )}
-            <button 
-                onClick={onClose}
-                className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200 rounded-lg transition-colors"
-            >
-                Hủy Bỏ
-            </button>
-            {step === 2 && (
-                <button 
-                    onClick={handleApply}
-                    disabled={selectedIndices.size === 0}
-                    className="px-6 py-2 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                >
-                    <Check className="w-4 h-4" />
-                    Nhập vào 3 ô SP
-                </button>
-            )}
+                )}
+            </div>
         </div>
-
       </div>
+      <style>{`
+        @keyframes bounce-x {
+          0%, 100% { transform: translateX(0); }
+          50% { transform: translateX(5px); }
+        }
+        .animate-bounce-x {
+          animation: bounce-x 1s infinite;
+        }
+      `}</style>
     </div>
   );
 };

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { TrashIcon, TextBoxIcon, AlignLeftIcon, AlignCenterIcon, AlignRightIcon, UnderlineIcon, PhotoIcon, PaintBrushIcon, EraserIcon, RectangleIcon, EllipseIcon, DiamondIcon } from './Icons';
 import type { CanvasElement, TextProperties, ImageProperties, BannerProperties } from '../types';
@@ -673,7 +674,7 @@ const AddTextModal: React.FC<AddTextModalProps> = ({ isOpen, onClose, imageSrc, 
         const dy = mousePos.y - initialMousePos.y;
         const isShiftHeld = e.shiftKey;
 
-        setElements(els => els.map(el => {
+        setElements((els) => els.map(el => {
             if (el.id !== initialElement.id) return el;
             const angleRad = initialElement.rotation * Math.PI / 180;
             const cos = Math.cos(angleRad); const sin = Math.sin(angleRad);
@@ -698,24 +699,25 @@ const AddTextModal: React.FC<AddTextModalProps> = ({ isOpen, onClose, imageSrc, 
 
             // --- RESIZE LOGIC ---
             const resizeText = (textEl: TextProperties) => {
+                const initEl = initialElement as TextProperties;
                 if (isShiftHeld) { // Proportional
-                    const metrics = getElementMetrics(initialElement);
+                    const metrics = getElementMetrics(initEl);
                     const center = { x: metrics.centerX, y: metrics.centerY };
                     const initialDist = Math.hypot(initialMousePos.x - center.x, initialMousePos.y - center.y);
                     const currentDist = Math.hypot(mousePos.x - center.x, mousePos.y - center.y);
                     if (initialDist === 0) return textEl;
                     const scale = currentDist / initialDist;
-                    const newWidth = Math.max(20, initialElement.width * scale);
-                    const newFontSize = Math.max(8, initialElement.fontSize * scale);
-                    const newMetrics = getElementMetrics({ ...initialElement as TextProperties, width: newWidth, fontSize: newFontSize });
+                    const newWidth = Math.max(20, initEl.width * scale);
+                    const newFontSize = Math.max(8, initEl.fontSize * scale);
+                    const newMetrics = getElementMetrics({ ...initEl, width: newWidth, fontSize: newFontSize });
                     return { ...textEl, width: newWidth, fontSize: newFontSize, x: center.x - newWidth / 2, y: center.y - newMetrics.height / 2 };
                 } else { // Freeform
                     let newWidth = textEl.width;
-                    if (type.includes('right')) newWidth = Math.max(20, initialElement.width + localDx);
-                    if (type.includes('left')) newWidth = Math.max(20, initialElement.width - localDx);
+                    if (type.includes('right')) newWidth = Math.max(20, initEl.width + localDx);
+                    if (type.includes('left')) newWidth = Math.max(20, initEl.width - localDx);
                     
-                    const dw = newWidth - initialElement.width;
-                    const initialMetrics = getElementMetrics(initialElement);
+                    const dw = newWidth - initEl.width;
+                    const initialMetrics = getElementMetrics(initEl);
                     let shiftX = 0;
                     if (type.includes('right')) shiftX += dw / 2; if (type.includes('left')) shiftX -= dw / 2;
                     
@@ -728,14 +730,15 @@ const AddTextModal: React.FC<AddTextModalProps> = ({ isOpen, onClose, imageSrc, 
             };
             
             const resizeShape = (shapeEl: ImageProperties | BannerProperties) => {
-                let newWidth = initialElement.width; let newHeight = initialElement.height;
-                if (type.includes('right')) newWidth = Math.max(20, initialElement.width + localDx);
-                if (type.includes('left')) newWidth = Math.max(20, initialElement.width - localDx);
-                if (type.includes('bottom')) newHeight = Math.max(20, initialElement.height + localDy);
-                if (type.includes('top')) newHeight = Math.max(20, initialElement.height - localDy);
+                const initEl = initialElement as ImageProperties | BannerProperties;
+                let newWidth = initEl.width; let newHeight = initEl.height;
+                if (type.includes('right')) newWidth = Math.max(20, initEl.width + localDx);
+                if (type.includes('left')) newWidth = Math.max(20, initEl.width - localDx);
+                if (type.includes('bottom')) newHeight = Math.max(20, initEl.height + localDy);
+                if (type.includes('top')) newHeight = Math.max(20, initEl.height - localDy);
 
                 if (isShiftHeld && shapeEl.type === 'banner') {
-                     const initialAspectRatio = initialElement.width / initialElement.height;
+                     const initialAspectRatio = initEl.width / initEl.height;
                      if (type.includes('left') || type.includes('right')) newHeight = newWidth / initialAspectRatio;
                      else newWidth = newHeight * initialAspectRatio;
                 } else if (shapeEl.type === 'image') {
@@ -743,12 +746,12 @@ const AddTextModal: React.FC<AddTextModalProps> = ({ isOpen, onClose, imageSrc, 
                     else newWidth = newHeight * shapeEl.aspectRatio;
                 }
 
-                const dw = newWidth - initialElement.width; const dh = newHeight - initialElement.height;
+                const dw = newWidth - initEl.width; const dh = newHeight - initEl.height;
                 let shiftX = 0; let shiftY = 0;
                 if (type.includes('right')) shiftX += dw / 2; if (type.includes('left')) shiftX -= dw / 2;
                 if (type.includes('bottom')) shiftY += dh / 2; if (type.includes('top')) shiftY -= dh / 2;
                 const rotatedShiftX = shiftX * cos - shiftY * sin; const rotatedShiftY = shiftX * sin + shiftY * cos;
-                const oldCenter = { x: initialElement.x + initialElement.width / 2, y: initialElement.y + initialElement.height / 2 };
+                const oldCenter = { x: initEl.x + initEl.width / 2, y: initEl.y + initEl.height / 2 };
                 const newCenter = { x: oldCenter.x + rotatedShiftX, y: oldCenter.y + rotatedShiftY };
                 return { ...shapeEl, width: newWidth, height: newHeight, x: newCenter.x - newWidth / 2, y: newCenter.y - newHeight / 2 };
             };
@@ -759,7 +762,7 @@ const AddTextModal: React.FC<AddTextModalProps> = ({ isOpen, onClose, imageSrc, 
             }
 
             return el;
-        }));
+        }) as CanvasElement[]);
     };
     
     const handleMouseUp = () => {
@@ -817,8 +820,7 @@ const AddTextModal: React.FC<AddTextModalProps> = ({ isOpen, onClose, imageSrc, 
                     imageElement: img,
                     x: (canvas.width - newWidth) / 2, y: (canvas.height - newHeight) / 2,
                     width: newWidth, height: newHeight, rotation: 0, skewX: 0, skewY: 0, aspectRatio: imgAspectRatio,
-// FIX: Add missing shadow and stroke properties to the ImageProperties object to align with the type definition.
-shadowEnabled: false, shadowColor: '#000000', shadowBlur: 0, shadowOffsetX: 0, shadowOffsetY: 0,
+                    shadowEnabled: false, shadowColor: '#000000', shadowBlur: 0, shadowOffsetX: 0, shadowOffsetY: 0,
                     strokeEnabled: false, strokeColor: '#000000', strokeWidth: 0
                 };
                 setElements(els => [...els, newImage]); setSelectedElementId(newImage.id); setActiveTool('select');
@@ -836,7 +838,7 @@ shadowEnabled: false, shadowColor: '#000000', shadowBlur: 0, shadowOffsetX: 0, s
 
     const updateSelectedElement = (updates: Partial<CanvasElement>) => {
         if (!selectedElementId) return;
-        setElements(els => els.map(el => (el.id === selectedElementId) ? { ...el, ...updates } : el));
+        setElements(els => els.map(el => (el.id === selectedElementId) ? { ...el, ...updates } : el) as CanvasElement[]);
     };
     
     const handleApply = () => {

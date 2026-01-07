@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import type { GoogleGenAI } from '@google/genai';
 import { TrashIcon, TextBoxIcon, AlignLeftIcon, AlignCenterIcon, AlignRightIcon, UnderlineIcon, PhotoIcon, PaintBrushIcon, EraserIcon, RectangleIcon, EllipseIcon, DiamondIcon } from './Icons';
@@ -670,7 +671,7 @@ const CanvasEditorModal: React.FC<CanvasEditorModalProps> = ({ isOpen, onClose, 
         const dy = mousePos.y - initialMousePos.y;
         const isShiftHeld = e.shiftKey;
 
-        setElements(els => els.map(el => {
+        setElements((els) => els.map(el => {
             if (el.id !== initialElement.id) return el;
             const angleRad = initialElement.rotation * Math.PI / 180;
             const cos = Math.cos(angleRad); const sin = Math.sin(angleRad);
@@ -687,7 +688,8 @@ const CanvasEditorModal: React.FC<CanvasEditorModalProps> = ({ isOpen, onClose, 
 
             // --- RESIZE LOGIC ---
             const resizeText = (textEl: TextProperties) => {
-                const initialMetrics = getElementMetrics(initialElement as TextProperties);
+                const initEl = initialElement as TextProperties;
+                const initialMetrics = getElementMetrics(initEl);
                 const initialHeight = initialMetrics.height;
                 const oldCenter = { x: initialMetrics.centerX, y: initialMetrics.centerY };
 
@@ -697,8 +699,8 @@ const CanvasEditorModal: React.FC<CanvasEditorModalProps> = ({ isOpen, onClose, 
                     const currentDist = Math.hypot(mousePos.x - oldCenter.x, mousePos.y - oldCenter.y);
                     if (initialDist === 0) return textEl;
                     const scale = currentDist / initialDist;
-                    const newWidth = Math.max(20, initialElement.width * scale);
-                    const newFontSize = Math.max(8, (initialElement as TextProperties).fontSize * scale);
+                    const newWidth = Math.max(20, initEl.width * scale);
+                    const newFontSize = Math.max(8, initEl.fontSize * scale);
                     const newMetrics = getElementMetrics({ ...textEl, width: newWidth, fontSize: newFontSize });
                     return { ...textEl, width: newWidth, fontSize: newFontSize, x: oldCenter.x - newWidth / 2, y: oldCenter.y - newMetrics.height / 2 };
                 } 
@@ -706,26 +708,26 @@ const CanvasEditorModal: React.FC<CanvasEditorModalProps> = ({ isOpen, onClose, 
                 else {
                     let newWidth = textEl.width;
                     let newFontSize = textEl.fontSize;
-                    if (type.includes('right')) newWidth = Math.max(20, initialElement.width + localDx);
-                    if (type.includes('left')) newWidth = Math.max(20, initialElement.width - localDx);
+                    if (type.includes('right')) newWidth = Math.max(20, initEl.width + localDx);
+                    if (type.includes('left')) newWidth = Math.max(20, initEl.width - localDx);
 
                     if (type.includes('bottom')) {
                         const heightChange = localDy;
                         if (initialHeight > 0) {
                             const scaleY = (initialHeight + heightChange) / initialHeight;
-                            newFontSize = Math.max(8, (initialElement as TextProperties).fontSize * scaleY);
+                            newFontSize = Math.max(8, initEl.fontSize * scaleY);
                         }
                     }
                     if (type.includes('top')) {
                         const heightChange = -localDy;
                          if (initialHeight > 0) {
                             const scaleY = (initialHeight + heightChange) / initialHeight;
-                            newFontSize = Math.max(8, (initialElement as TextProperties).fontSize * scaleY);
+                            newFontSize = Math.max(8, initEl.fontSize * scaleY);
                         }
                     }
                     
                     const tempNewMetrics = getElementMetrics({ ...textEl, width: newWidth, fontSize: newFontSize });
-                    const dw = newWidth - initialElement.width;
+                    const dw = newWidth - initEl.width;
                     const dh = tempNewMetrics.height - initialHeight;
                     
                     let shiftX = 0; let shiftY = 0;
@@ -739,14 +741,15 @@ const CanvasEditorModal: React.FC<CanvasEditorModalProps> = ({ isOpen, onClose, 
             };
             
             const resizeShape = (shapeEl: ImageProperties | BannerProperties) => {
-                let newWidth = initialElement.width; let newHeight = initialElement.height;
-                if (type.includes('right')) newWidth = Math.max(20, initialElement.width + localDx);
-                if (type.includes('left')) newWidth = Math.max(20, initialElement.width - localDx);
-                if (type.includes('bottom')) newHeight = Math.max(20, initialElement.height + localDy);
-                if (type.includes('top')) newHeight = Math.max(20, initialElement.height - localDy);
+                const initEl = initialElement as ImageProperties | BannerProperties;
+                let newWidth = initEl.width; let newHeight = initEl.height;
+                if (type.includes('right')) newWidth = Math.max(20, initEl.width + localDx);
+                if (type.includes('left')) newWidth = Math.max(20, initEl.width - localDx);
+                if (type.includes('bottom')) newHeight = Math.max(20, initEl.height + localDy);
+                if (type.includes('top')) newHeight = Math.max(20, initEl.height - localDy);
 
                 if (isShiftHeld && shapeEl.type === 'banner') {
-                     const initialAspectRatio = initialElement.width / initialElement.height;
+                     const initialAspectRatio = initEl.width / initEl.height;
                      if (type.includes('left') || type.includes('right')) newHeight = newWidth / initialAspectRatio;
                      else newWidth = newHeight * initialAspectRatio;
                 } else if (shapeEl.type === 'image') {
@@ -754,12 +757,12 @@ const CanvasEditorModal: React.FC<CanvasEditorModalProps> = ({ isOpen, onClose, 
                     else newWidth = newHeight * shapeEl.aspectRatio;
                 }
 
-                const dw = newWidth - initialElement.width; const dh = newHeight - initialElement.height;
+                const dw = newWidth - initEl.width; const dh = newHeight - initEl.height;
                 let shiftX = 0; let shiftY = 0;
                 if (type.includes('right')) shiftX += dw / 2; if (type.includes('left')) shiftX -= dw / 2;
                 if (type.includes('bottom')) shiftY += dh / 2; if (type.includes('top')) shiftY -= dh / 2;
                 const rotatedShiftX = shiftX * cos - shiftY * sin; const rotatedShiftY = shiftX * sin + shiftY * cos;
-                const oldCenter = { x: initialElement.x + initialElement.width / 2, y: initialElement.y + initialElement.height / 2 };
+                const oldCenter = { x: initEl.x + initEl.width / 2, y: initEl.y + initEl.height / 2 };
                 const newCenter = { x: oldCenter.x + rotatedShiftX, y: oldCenter.y + rotatedShiftY };
                 return { ...shapeEl, width: newWidth, height: newHeight, x: newCenter.x - newWidth / 2, y: newCenter.y - newHeight / 2 };
             };
@@ -770,7 +773,7 @@ const CanvasEditorModal: React.FC<CanvasEditorModalProps> = ({ isOpen, onClose, 
             }
 
             return el;
-        }));
+        }) as CanvasElement[]);
     };
     
     const handleMouseUp = () => {
@@ -828,8 +831,7 @@ const CanvasEditorModal: React.FC<CanvasEditorModalProps> = ({ isOpen, onClose, 
                     imageElement: img,
                     x: (canvas.width - newWidth) / 2, y: (canvas.height - newHeight) / 2,
                     width: newWidth, height: newHeight, rotation: 0, skewX: 0, skewY: 0, aspectRatio: imgAspectRatio,
-// FIX: Add missing shadow and stroke properties to the ImageProperties object to align with the type definition.
-shadowEnabled: false, shadowColor: '#000000', shadowBlur: 0, shadowOffsetX: 0, shadowOffsetY: 0,
+                    shadowEnabled: false, shadowColor: '#000000', shadowBlur: 0, shadowOffsetX: 0, shadowOffsetY: 0,
                     strokeEnabled: false, strokeColor: '#000000', strokeWidth: 0
                 };
                 setElements(els => [...els, newImage]); setSelectedElementId(newImage.id); setActiveTool('select');
@@ -847,7 +849,7 @@ shadowEnabled: false, shadowColor: '#000000', shadowBlur: 0, shadowOffsetX: 0, s
 
     const updateSelectedElement = (updates: Partial<CanvasElement>) => {
         if (!selectedElementId) return;
-        setElements(els => els.map(el => (el.id === selectedElementId) ? { ...el, ...updates } : el));
+        setElements(els => els.map(el => (el.id === selectedElementId) ? { ...el, ...updates } : el) as CanvasElement[]);
     };
     
     const handleApply = () => {

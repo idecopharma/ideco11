@@ -1,3 +1,4 @@
+
 import type { PromptTemplate } from './types';
 
 export const INITIAL_PROMPTS: PromptTemplate[] = [
@@ -30,4 +31,23 @@ export const GENERIC_KEYWORDS: string[] = [
     "Ảnh chụp chuyên nghiệp",
     "Góc rộng",
     "Cận cảnh"
+];
+
+export const ASPECT_RATIOS = [
+  { value: '1:1', label: 'Vuông', icon: 'Square' },
+  { value: '16:9', label: 'Ngang', icon: 'RectangleHorizontal' },
+  { value: '9:16', label: 'Dọc', icon: 'RectangleVertical' },
+  { value: '4:3', label: 'Cổ điển', icon: 'Monitor' },
+  { value: '3:4', label: 'Di động', icon: 'Smartphone' },
+];
+
+export const STYLES = [
+  { value: 'photorealistic', label: 'Thực tế' },
+  { value: 'cinematic', label: 'Điện ảnh' },
+  { value: 'anime', label: 'Anime' },
+  { value: 'digital-art', label: 'Kỹ thuật số' },
+  { value: 'oil-painting', label: 'Sơn dầu' },
+  { value: 'sketch', label: 'Phác thảo' },
+  { value: 'minimalist', label: 'Tối giản' },
+  { value: 'cyberpunk', label: 'Cyberpunk' },
 ];

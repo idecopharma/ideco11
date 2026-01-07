@@ -1,8 +1,8 @@
 
-import React, { useRef, useState, useMemo } from 'react';
-import { ProductData, ExcelMapping } from '../types';
-import { Pill, DollarSign, Factory, FileText, Tag, Upload, Trash2, HeartPulse, Smartphone, Monitor, Quote, Search, Link as LinkIcon, Download, X, Eraser, Box, Loader2 } from 'lucide-react';
+import { AlertCircle, Box, DollarSign, Download, Eraser, Factory, HeartPulse, Link as LinkIcon, Loader2, Monitor, Pill, Quote, Smartphone, Tag, Trash2, Upload } from 'lucide-react';
+import React, { useMemo, useRef, useState } from 'react';
 import { Sparkles } from 'lucide-react';
+import { ExcelMapping, ProductData } from '../types';
 
 interface ProductFormProps {
   products: ProductData[];
@@ -12,30 +12,24 @@ interface ProductFormProps {
   onImageUpload: (id: number, file: File) => void;
   onRemoveImage: (id: number) => void;
   onSubmit: () => void;
+  onProcessImage: (id: number, task: 'remove-bg' | 'make-3d') => Promise<void>;
   isProcessing: boolean;
+  isImageProcessing: boolean;
   masterLibrary?: any[];
   columnMapping?: ExcelMapping;
   onApplyLibraryProduct?: (id: number, libraryItem: any) => void;
-  imageLoading?: boolean;
-  onAIAction?: (task: 'remove_bg' | 'make_3d') => void;
 }
 
+const PROMPT_TEMPLATES = [
+  { id: 'female_patient', label: '👩 Nữ bệnh nhân', text: 'Tạo poster chuyên nghiệp. Một bệnh nhân nữ trung niên người Việt Nam, tay cầm sản phẩm, tươi cười, tại phòng khám hiện đại.' },
+  { id: 'doctor_consult', label: '👨‍⚕️ Bác sĩ tư vấn', text: 'Bác sĩ nam đang tư vấn, cầm hộp sản phẩm đưa về hướng bệnh nhân nam. Nền sáng, chuyên nghiệp.' },
+  { id: 'packshot_3d', label: '📦 Packshot 3D', text: 'Chụp packshot sản phẩm 3D chuyên nghiệp, đặt trên bục sang trọng, ánh sáng cinematic.' }
+];
+
 export const ProductForm: React.FC<ProductFormProps> = ({ 
-  products, 
-  activeTab, 
-  onTabChange, 
-  onChange, 
-  onImageUpload, 
-  onRemoveImage,
-  onSubmit, 
-  isProcessing,
-  masterLibrary = [],
-  columnMapping,
-  onApplyLibraryProduct,
-  imageLoading,
-  onAIAction
+  products, activeTab, onTabChange, onChange, onImageUpload, onRemoveImage, onSubmit, onProcessImage,
+  isProcessing, isImageProcessing, masterLibrary = [], columnMapping, onApplyLibraryProduct
 }) => {
-  
   const activeProduct = products.find(p => p.id === activeTab) || products[0];
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -56,43 +50,36 @@ export const ProductForm: React.FC<ProductFormProps> = ({
     if (field === 'name') setShowSuggestions(true);
   };
 
-  const handleUrlLoad = async () => {
-      if (!imageUrlInput.trim()) return;
-      setIsUrlLoading(true);
-      try {
-          const img = new Image();
-          img.crossOrigin = "Anonymous";
-          img.src = imageUrlInput;
-          await new Promise((resolve, reject) => {
-              img.onload = resolve;
-              img.onerror = () => reject(new Error("CORS error or invalid URL"));
-          });
-          const canvas = document.createElement('canvas');
-          canvas.width = img.naturalWidth;
-          canvas.height = img.naturalHeight;
-          const ctx = canvas.getContext('2d');
-          if (ctx) {
-              ctx.drawImage(img, 0, 0);
-              const dataURL = canvas.toDataURL('image/png');
-              const res = await fetch(dataURL);
-              const blob = await res.blob();
-              const file = new File([blob], "downloaded_image.png", { type: "image/png" });
-              onImageUpload(activeTab, file);
-              setImageUrlInput('');
-          }
-      } catch (e) {
-          alert("Lỗi tải ảnh: Trang web gốc chặn tải trực tiếp (CORS). Hãy tải về máy và upload thủ công.");
-      } finally {
-          setIsUrlLoading(false);
-      }
+  const handleSuggestionClick = (item: any) => {
+      onApplyLibraryProduct?.(activeTab, item);
+      setShowSuggestions(false);
   };
 
-  const handleDownloadImage = () => {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files?.[0]) onImageUpload(activeTab, e.target.files[0]);
+  };
+
+  const handleUrlLoad = async () => {
+    if (!imageUrlInput.trim()) return;
+    setIsUrlLoading(true);
+    try {
+      const response = await fetch(imageUrlInput);
+      const blob = await response.blob();
+      const file = new File([blob], "image_from_url.png", { type: blob.type });
+      onImageUpload(activeTab, file);
+      setImageUrlInput('');
+    } catch (e) {
+      alert("Lỗi tải ảnh. Vui lòng thử lại hoặc tải ảnh về máy rồi upload thủ công.");
+    } finally {
+      setIsUrlLoading(false);
+    }
+  };
+
+  const downloadProductImage = () => {
     if (!activeProduct.imageBase64) return;
     const link = document.createElement('a');
     link.href = activeProduct.imageBase64;
-    // Đặt tên file theo Tên Thuốc (Tiêu đề 1)
-    const fileName = activeProduct.name ? activeProduct.name.replace(/[/\\?%*:|"<>]/g, '-') : `product-${activeTab}`;
+    const fileName = activeProduct.name ? activeProduct.name.trim().replace(/\s+/g, '_') : `Product_${activeTab}`;
     link.download = `${fileName}.png`;
     document.body.appendChild(link);
     link.click();
@@ -103,76 +90,95 @@ export const ProductForm: React.FC<ProductFormProps> = ({
     <div className="bg-white rounded-xl shadow-lg flex flex-col h-full border border-slate-200">
       <div className="flex border-b border-slate-200 bg-slate-50 rounded-t-xl overflow-hidden">
         {products.map((p) => (
-          <button key={p.id} onClick={() => onTabChange(p.id)} className={`flex-1 py-3 text-sm font-semibold transition-all border-r border-slate-200 last:border-r-0 ${activeTab === p.id ? 'bg-white text-emerald-700 border-t-2 border-t-emerald-500 shadow-sm' : 'text-slate-500 hover:bg-slate-100'}`}>
+          <button
+            key={p.id}
+            onClick={() => onTabChange(p.id)}
+            className={`flex-1 py-3 text-sm font-semibold transition-all border-r border-slate-200 last:border-r-0
+              ${activeTab === p.id ? 'bg-white text-emerald-700 border-t-2 border-t-emerald-500 shadow-sm' : 'text-slate-500 hover:bg-slate-100'}`}
+          >
             Sản phẩm {p.id}
           </button>
         ))}
       </div>
 
       <div className="p-6 md:p-8 flex-1 overflow-y-auto custom-scrollbar">
-        <div className="flex flex-wrap items-center justify-between mb-6 gap-3">
+        <div className="flex items-center justify-between mb-6 gap-3">
             <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
                 <Pill className="w-5 h-5 text-emerald-600" /> Thông Tin SP {activeTab}
             </h2>
-            <div className="flex items-center gap-3">
-                 <div className="bg-slate-100 p-1 rounded-lg flex border border-slate-200">
-                    <button onClick={() => onChange(activeTab, 'aspectRatio', 'vertical')} className={`px-3 py-1 text-xs font-bold rounded-md flex items-center gap-1 transition-all ${activeProduct.aspectRatio === 'vertical' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-400'}`}><Smartphone className="w-3 h-3" /> Dọc</button>
-                    <button onClick={() => onChange(activeTab, 'aspectRatio', 'horizontal')} className={`px-3 py-1 text-xs font-bold rounded-md flex items-center gap-1 transition-all ${activeProduct.aspectRatio === 'horizontal' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-400'}`}><Monitor className="w-3 h-3" /> Ngang</button>
-                </div>
-                <label className="flex items-center gap-2 cursor-pointer bg-slate-100 px-3 py-1.5 rounded-full border border-slate-200">
-                    <input type="checkbox" checked={activeProduct.isETC} onChange={(e) => onChange(activeTab, 'isETC', e.target.checked)} className="w-4 h-4 text-emerald-600 accent-emerald-600" />
-                    <span className={`text-xs font-bold ${activeProduct.isETC ? 'text-red-600' : 'text-slate-500'}`}>ETC</span>
-                </label>
+            <div className="bg-slate-100 p-1 rounded-lg flex border border-slate-200">
+                <button onClick={() => onChange(activeTab, 'aspectRatio', 'vertical')} className={`px-3 py-1 text-xs font-bold rounded-md flex items-center gap-1 transition-all ${activeProduct.aspectRatio === 'vertical' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-400'}`}><Smartphone className="w-3 h-3" /> Dọc</button>
+                <button onClick={() => onChange(activeTab, 'aspectRatio', 'horizontal')} className={`px-3 py-1 text-xs font-bold rounded-md flex items-center gap-1 transition-all ${activeProduct.aspectRatio === 'horizontal' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-400'}`}><Monitor className="w-3 h-3" /> Ngang</button>
             </div>
         </div>
 
         <div className="space-y-5">
-          <div className="border-2 border-dashed border-slate-300 rounded-lg p-4 bg-slate-50/50 hover:bg-white hover:border-emerald-400 transition-colors relative">
-            <label className="block text-sm font-medium text-slate-700 mb-2 flex justify-between items-center">
-              <span>Ảnh Sản Phẩm (Gốc hoặc Link)</span>
-              {activeProduct.imageBase64 && (
-                <button onClick={() => onRemoveImage(activeTab)} className="text-xs text-red-500 hover:text-red-700 flex items-center gap-1"><Trash2 className="w-3 h-3" /> Xóa</button>
-              )}
-            </label>
+          {/* Image Area */}
+          <div className="border-2 border-dashed border-slate-300 rounded-lg p-4 bg-slate-50/50 hover:bg-white hover:border-emerald-400 transition-colors relative group">
+            <div className="flex justify-between items-center mb-2">
+                <span className="text-sm font-medium text-slate-700">Ảnh Sản Phẩm (Gốc/Xử lý)</span>
+                {activeProduct.imageBase64 && (
+                    <div className="flex gap-2">
+                        <button onClick={downloadProductImage} className="text-xs text-blue-600 font-bold flex items-center gap-1 hover:underline" title="Tải ảnh sản phẩm về máy">
+                            <Download className="w-3 h-3" /> Tải về
+                        </button>
+                        <button onClick={() => onRemoveImage(activeTab)} className="text-xs text-red-500 font-bold flex items-center gap-1 hover:underline">
+                            <Trash2 className="w-3 h-3" /> Xóa
+                        </button>
+                    </div>
+                )}
+            </div>
             
-            <input type="file" accept="image/*" ref={fileInputRef} onChange={(e) => e.target.files?.[0] && onImageUpload(activeTab, e.target.files[0])} className="hidden" />
+            <input type="file" accept="image/*" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
 
-            {imageLoading ? (
-                <div className="flex flex-col items-center justify-center py-10 text-emerald-600">
-                    <Loader2 className="w-10 h-10 animate-spin mb-2" />
-                    <p className="text-sm font-bold animate-pulse">AI đang xử lý ảnh...</p>
-                </div>
-            ) : !activeProduct.imageBase64 ? (
-              <div className="flex flex-col gap-4">
-                  <div onClick={() => fileInputRef.current?.click()} className="cursor-pointer flex flex-col items-center justify-center py-4 text-slate-400 hover:text-emerald-500">
+            {!activeProduct.imageBase64 ? (
+              <div className="space-y-4">
+                  <div onClick={() => fileInputRef.current?.click()} className="cursor-pointer flex flex-col items-center justify-center py-6 text-slate-400">
                     <Upload className="w-8 h-8 mb-2 opacity-50" />
-                    <p className="text-sm font-medium">Tải ảnh thuốc lên máy</p>
+                    <p className="text-sm">Click để tải ảnh lên</p>
                   </div>
-                  <div className="flex items-center gap-2 border-t border-slate-200 pt-3">
+                  <div className="flex items-center gap-2 border-t border-slate-200 pt-4">
                      <LinkIcon className="w-4 h-4 text-slate-400" />
-                     <input type="text" placeholder="Dán link ảnh..." className="flex-1 text-xs border border-slate-300 rounded px-2 py-1.5 outline-none" value={imageUrlInput} onChange={(e) => setImageUrlInput(e.target.value)} />
-                     <button onClick={handleUrlLoad} disabled={!imageUrlInput.trim() || isUrlLoading} className="text-xs bg-emerald-600 text-white px-3 py-1.5 rounded disabled:opacity-50">Dùng</button>
+                     <input 
+                        type="text" placeholder="Dán link ảnh (URL) vào đây..."
+                        className="flex-1 text-xs border border-slate-300 rounded px-3 py-2 outline-none"
+                        value={imageUrlInput} onChange={(e) => setImageUrlInput(e.target.value)}
+                     />
+                     <button onClick={handleUrlLoad} disabled={!imageUrlInput.trim() || isUrlLoading} className="text-xs bg-emerald-600 text-white px-4 py-2 rounded font-bold disabled:opacity-50">
+                        {isUrlLoading ? '...' : 'Tải'}
+                     </button>
                   </div>
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="flex flex-col gap-4">
                 <div className="flex items-center gap-4">
-                    <div className="w-24 h-24 rounded-md overflow-hidden border border-slate-200 shadow-sm shrink-0 bg-white relative group">
+                    <div className="w-24 h-24 rounded-lg overflow-hidden border border-slate-200 bg-white relative shrink-0">
+                        {isImageProcessing && (
+                            <div className="absolute inset-0 bg-white/60 flex items-center justify-center z-10">
+                                <Loader2 className="w-6 h-6 text-emerald-600 animate-spin" />
+                            </div>
+                        )}
                         <img src={activeProduct.imageBase64} alt="Product" className="w-full h-full object-contain" />
-                        <div onClick={() => fileInputRef.current?.click()} className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity cursor-pointer">
-                            <Upload className="w-6 h-6 text-white" />
-                        </div>
                     </div>
-                    <div className="flex-1 grid grid-cols-2 gap-2">
-                        <button onClick={() => onAIAction?.('remove_bg')} className="flex items-center justify-center gap-2 px-3 py-2 bg-white border border-indigo-200 text-indigo-700 text-xs font-bold rounded-lg hover:bg-indigo-50 transition-all shadow-sm">
-                            <Eraser className="w-4 h-4" /> Xóa Nền AI
-                        </button>
-                        <button onClick={() => onAIAction?.('make_3d')} className="flex items-center justify-center gap-2 px-3 py-2 bg-indigo-600 text-white text-xs font-bold rounded-lg hover:bg-indigo-700 transition-all shadow-md">
-                            <Box className="w-4 h-4" /> Tạo Hộp 3D
-                        </button>
-                        <button onClick={handleDownloadImage} className="col-span-2 flex items-center justify-center gap-2 px-3 py-2 bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-bold rounded-lg hover:bg-emerald-100 transition-all">
-                            <Download className="w-4 h-4" /> Tải về máy (Tên: {activeProduct.name || 'SP'})
-                        </button>
+                    <div className="flex-1 space-y-2">
+                        <p className="text-sm font-bold text-slate-700">Công cụ xử lý AI:</p>
+                        <div className="flex flex-wrap gap-2">
+                            <button 
+                                onClick={() => onProcessImage(activeTab, 'remove-bg')}
+                                disabled={isImageProcessing}
+                                className="px-3 py-1.5 bg-indigo-600 text-white rounded text-xs font-bold flex items-center gap-1.5 hover:bg-indigo-700 disabled:opacity-50"
+                            >
+                                <Eraser className="w-3.5 h-3.5" /> Xóa nền
+                            </button>
+                            <button 
+                                onClick={() => onProcessImage(activeTab, 'make-3d')}
+                                disabled={isImageProcessing}
+                                className="px-3 py-1.5 bg-purple-600 text-white rounded text-xs font-bold flex items-center gap-1.5 hover:bg-purple-700 disabled:opacity-50"
+                            >
+                                <Box className="w-3.5 h-3.5" /> Tạo 3D
+                            </button>
+                            <button onClick={() => fileInputRef.current?.click()} className="px-3 py-1.5 bg-slate-200 text-slate-600 rounded text-xs font-bold hover:bg-slate-300 transition-colors">Đổi ảnh</button>
+                        </div>
                     </div>
                 </div>
               </div>
@@ -180,17 +186,26 @@ export const ProductForm: React.FC<ProductFormProps> = ({
           </div>
 
           <div className="relative z-20">
-            <label className="block text-sm font-medium text-slate-700 mb-1">Tên Thuốc (Tiêu đề 1)</label>
+            <div className="flex justify-between items-center mb-1">
+                <label className="block text-sm font-bold text-slate-700 uppercase tracking-tight">Tên Thuốc (Tiêu đề 1)</label>
+                <div className="flex items-center gap-2 bg-slate-100 px-3 py-1 rounded-full border border-slate-200 shadow-sm">
+                    <AlertCircle className={`w-3 h-3 ${activeProduct.isETC ? 'text-red-500' : 'text-slate-400'}`} />
+                    <span className={`text-[10px] font-bold uppercase ${activeProduct.isETC ? 'text-red-600' : 'text-slate-500'}`}>Thuốc kê toa (ETC)</span>
+                    <button 
+                        onClick={() => onChange(activeTab, 'isETC', !activeProduct.isETC)}
+                        className={`w-10 h-5 rounded-full relative transition-all duration-300 ${activeProduct.isETC ? 'bg-red-500' : 'bg-slate-300'}`}
+                    >
+                        <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-md transition-all duration-300 ${activeProduct.isETC ? 'left-5.5' : 'left-0.5'}`} />
+                    </button>
+                </div>
+            </div>
             <div className="relative">
-              <input type="text" value={activeProduct.name} onChange={(e) => handleChange(e, 'name')} onFocus={() => setShowSuggestions(true)} onBlur={() => setTimeout(() => setShowSuggestions(false), 200)} placeholder="VD: Panadol Extra" className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg outline-none font-bold text-slate-800" />
-              <Pill className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+              <input type="text" value={activeProduct.name} onChange={(e) => handleChange(e, 'name')} onFocus={() => setShowSuggestions(true)} onBlur={() => setTimeout(() => setShowSuggestions(false), 200)} placeholder="VD: Panadol Extra" className="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none font-bold text-lg" />
+              <Pill className="w-5 h-5 text-slate-400 absolute left-3 top-3" />
               {showSuggestions && suggestions.length > 0 && (
                   <ul className="absolute z-50 w-full bg-white border border-slate-200 rounded-lg shadow-xl mt-1 max-h-60 overflow-y-auto">
                       {suggestions.map((item, idx) => (
-                          <li key={idx} onMouseDown={() => { onApplyLibraryProduct?.(activeTab, item); setShowSuggestions(false); }} className="px-4 py-2 hover:bg-emerald-50 cursor-pointer text-sm border-b border-slate-50 last:border-0">
-                             <span className="font-semibold text-emerald-700">{item[columnMapping!.name]}</span>
-                             {item[columnMapping!.dosage] && <span className="text-xs text-slate-500 ml-2">({item[columnMapping!.dosage]})</span>}
-                          </li>
+                          <li key={idx} onMouseDown={() => handleSuggestionClick(item)} className="px-4 py-3 hover:bg-emerald-50 cursor-pointer text-sm border-b border-slate-50 last:border-0"><span className="font-bold text-emerald-700">{item[columnMapping!.name]}</span></li>
                       ))}
                   </ul>
               )}
@@ -199,48 +214,67 @@ export const ProductForm: React.FC<ProductFormProps> = ({
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Hàm lượng</label>
-              <input type="text" value={activeProduct.dosage} onChange={(e) => onChange(activeTab, 'dosage', e.target.value)} placeholder="VD: 500mg" className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none" />
+              <label className="block text-sm font-medium text-slate-700 mb-1">Hàm lượng & Quy cách</label>
+              <input type="text" value={activeProduct.dosage} onChange={(e) => handleChange(e, 'dosage')} placeholder="VD: 500mg, Hộp 20 viên" className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none" />
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Công dụng (Dòng phụ)</label>
               <div className="relative">
-                <input type="text" value={activeProduct.usage} onChange={(e) => onChange(activeTab, 'usage', e.target.value)} placeholder="VD: Hạ sốt nhanh" className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg outline-none" />
-                <HeartPulse className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                <input type="text" value={activeProduct.usage} onChange={(e) => handleChange(e, 'usage')} placeholder="VD: Giảm đau, hạ sốt" className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none" />
+                <HeartPulse className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
               </div>
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Giá Niêm Yết</label>
-              <input type="text" value={activeProduct.listPrice} onChange={(e) => onChange(activeTab, 'listPrice', e.target.value)} placeholder="200,000 đ" className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg outline-none" />
+              <label className="block text-sm font-bold text-slate-700 mb-1">Giá Niêm Yết (Tiêu đề 2)</label>
+              <div className="relative">
+                <input type="text" value={activeProduct.listPrice} onChange={(e) => handleChange(e, 'listPrice')} placeholder="VD: 73,000 đồng/ hộp 20 gói 5ml" className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none font-semibold text-slate-600" />
+                <Tag className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+              </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-emerald-700 mb-1">Giá từ IDECO</label>
+              <div className="flex justify-between items-center mb-1">
+                <label className="block text-sm font-bold text-emerald-700">Giá IDECO (Tiêu đề 3 - Nổi bật)</label>
+                <span className="text-[10px] bg-emerald-100 text-emerald-700 font-extrabold px-1.5 py-0.5 rounded-sm animate-pulse">CENTERPIECE</span>
+              </div>
               <div className="relative">
-                <input type="text" value={activeProduct.idecoPrice} onChange={(e) => onChange(activeTab, 'idecoPrice', e.target.value)} placeholder="10,000 đ" className="w-full pl-10 pr-4 py-2 border-2 border-emerald-100 bg-emerald-50 rounded-lg font-bold text-emerald-800 outline-none" />
-                <DollarSign className="w-4 h-4 text-emerald-600 absolute left-3 top-3" />
+                <input type="text" value={activeProduct.idecoPrice} onChange={(e) => handleChange(e, 'idecoPrice')} placeholder="VD: 55,000 đồng/ hộp 3 vỉ x 5" className="w-full pl-10 pr-4 py-2 border-2 border-emerald-400 bg-emerald-50 rounded-lg focus:ring-2 focus:ring-emerald-500 font-black text-emerald-900 outline-none shadow-md" />
+                <DollarSign className="w-4 h-4 text-emerald-600 absolute left-3 top-2.5" />
               </div>
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Nhà Sản Xuất</label>
-            <input type="text" value={activeProduct.manufacturer} onChange={(e) => onChange(activeTab, 'manufacturer', e.target.value)} placeholder="VD: DHG Pharma" className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none" />
+            <label className="block text-sm font-medium text-slate-700 mb-1">Nhà Sản Xuất (Tiêu đề 4)</label>
+            <div className="relative">
+              <input type="text" value={activeProduct.manufacturer} onChange={(e) => handleChange(e, 'manufacturer')} placeholder="VD: Công ty DP APIMED" className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none" />
+              <Factory className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+            </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">Ghi chú thêm</label>
-            <textarea value={activeProduct.description} onChange={(e) => onChange(activeTab, 'description', e.target.value)} className="w-full p-3 border border-slate-300 rounded-lg outline-none h-20 resize-none text-sm" placeholder="Mô tả bối cảnh..." />
+            <label className="block text-sm font-medium text-slate-700 mb-2">Bối cảnh Poster & Mẫu</label>
+            <div className="flex flex-wrap gap-2 mb-3">
+              {PROMPT_TEMPLATES.map(t => (
+                <button key={t.id} onClick={() => onChange(activeTab, 'description', t.text)} className="px-3 py-1.5 bg-slate-100 hover:bg-emerald-50 text-slate-600 border border-slate-200 rounded-full text-xs font-bold transition-all"><Quote className="w-3 h-3 inline mr-1" />{t.label}</button>
+              ))}
+            </div>
+            <textarea value={activeProduct.description} onChange={(e) => handleChange(e, 'description')} placeholder="Ghi chú thêm về ánh sáng, phong cách..." className="w-full pl-4 pr-4 py-2 border border-slate-300 rounded-lg h-24 resize-none outline-none text-sm" />
           </div>
         </div>
       </div>
 
       <div className="p-6 border-t border-slate-100 bg-slate-50 rounded-b-xl">
-        <button onClick={onSubmit} disabled={isProcessing} className={`w-full py-3 px-6 rounded-lg text-white font-bold shadow-md transition-all flex items-center justify-center gap-2 uppercase tracking-wide ${isProcessing ? 'bg-slate-400' : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:shadow-lg active:scale-[0.98]'}`}>
+        <button
+          onClick={onSubmit}
+          disabled={isProcessing}
+          className={`w-full py-4 rounded-xl text-white font-bold shadow-lg transition-all flex items-center justify-center gap-2 uppercase tracking-wider
+            ${isProcessing ? 'bg-slate-400 cursor-not-allowed' : 'bg-gradient-to-r from-blue-600 to-indigo-700 hover:shadow-xl active:scale-95'}`}
+        >
           {isProcessing ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
-          Tạo 3 Prompt Sản Phẩm
+          {isProcessing ? 'Đang Thiết Kế Prompt...' : 'Tạo 3 Prompt Chuyên Nghiệp'}
         </button>
       </div>
     </div>
