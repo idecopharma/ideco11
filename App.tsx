@@ -1,13 +1,13 @@
 
 import React, { useState } from 'react';
-import { ProductForm } from './components/ProductForm';
-import { ResultDisplay } from './components/ResultDisplay';
-import { ExternalToolModal } from './components/ExternalToolModal';
-import { ExcelImportModal } from './components/ExcelImportModal';
-import { ProductData, GeneratedResult, AppState, ExcelMapping } from './types';
-import { generateOptimizedPrompt, processProductImageAI } from './services/geminiService';
+import { ProductForm } from './components/ProductForm.tsx';
+import { ResultDisplay } from './components/ResultDisplay.tsx';
+import { ExternalToolModal } from './components/ExternalToolModal.tsx';
+import { ExcelImportModal } from './components/ExcelImportModal.tsx';
+import { ProductData, GeneratedResult, AppState, ExcelMapping } from './types.ts';
+import { generateOptimizedPrompt, processProductImageAI } from './services/geminiService.ts';
 import { PenTool, BrainCircuit, Table, Image as ImageIcon } from 'lucide-react';
-import useLocalStorage from './hooks/useLocalStorage';
+import useLocalStorage from './hooks/useLocalStorage.ts';
 
 const createEmptyProduct = (id: number): ProductData => ({
   id,

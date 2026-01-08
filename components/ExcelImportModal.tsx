@@ -2,7 +2,7 @@
 import { AlertCircle, ArrowRight, Check, FileText, RefreshCw, Save, Search, Table, Upload, X, FilePlus } from 'lucide-react';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
-import { ExcelMapping, ProductData } from '../types';
+import { ExcelMapping, ProductData } from '../types.ts';
 
 interface ExcelImportModalProps {
   isOpen: boolean;
@@ -44,7 +44,6 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Sync state with props when modal opens or saved data changes
   useEffect(() => {
     if (isOpen) {
         if (savedData && savedData.length > 0) {
@@ -98,11 +97,9 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
             defval: '' 
         });
         
-        // Reset selections when new data loads
         setSelectedIndices(new Set());
         setData(jsonData);
         
-        // Auto-mapping logic
         const newMapping: ExcelMapping = { name: '', dosage: '', usage: '', listPrice: '', idecoPrice: '', manufacturer: '', packaging: '' };
         uniqueHeaders.forEach(col => {
              const lower = col.toLowerCase();
@@ -123,7 +120,7 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
       }
     };
     reader.readAsBinaryString(file);
-    e.target.value = ''; // Reset input to allow re-uploading the same file
+    e.target.value = '';
   };
 
   const handleTriggerFileUpload = () => {
@@ -225,7 +222,6 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
             <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full transition-colors"><X className="w-5 h-5 text-slate-500" /></button>
         </div>
 
-        {/* Hidden File Input - Placed here to ensure it exists in DOM regardless of step */}
         <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept=".xlsx, .xls" className="hidden" />
 
         <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
@@ -240,7 +236,6 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
                 </div>
             ) : (
                 <div className="space-y-6">
-                    {/* Toolbar */}
                     <div className="flex flex-col md:flex-row gap-4 justify-between items-end">
                         <div className="relative w-full md:w-96">
                             <input 
@@ -263,7 +258,6 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
                         </div>
                     </div>
 
-                    {/* Mapping Settings */}
                     <div className="bg-indigo-50/50 p-5 rounded-2xl border-2 border-indigo-100 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
                         {MAPPING_FIELDS.map(field => (
                             <div key={field.key} className="space-y-1.5">
@@ -280,7 +274,6 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
                         ))}
                     </div>
 
-                    {/* Table View */}
                     <div className="border-2 border-slate-200 rounded-2xl shadow-sm bg-white overflow-hidden flex flex-col">
                          <div className="overflow-x-auto w-full custom-scrollbar" style={{ maxHeight: '40vh' }}>
                             <table className="w-full text-sm text-left border-collapse">
