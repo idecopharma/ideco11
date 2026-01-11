@@ -32,18 +32,18 @@ export const generateOptimizedPrompt = async (data: ProductData): Promise<string
 
     MANDATORY TEXT ELEMENTS TO BE DESCRIBED IN THE POSTER:
     - Main Product Title: "${data.name}"
-    - List Price Tag: "GÃ­a NiÃªm Yáº¿t: ${data.listPrice}"
-    - Special Offer Tag: "GÃ­a mua tá»« IDECO chá»: ${data.idecoPrice}"
-    - Manufacturer Info: "NhÃ  sáº£n xuáº¥t: ${data.manufacturer}"
+    - List Price Tag: "GÃÂ­a NiÃÂªm YÃ¡ÂºÂ¿t: ${data.listPrice}"
+    - Special Offer Tag: "GÃÂ­a mua tÃ¡Â»Â« IDECO chÃ¡Â»Â: ${data.idecoPrice}"
+    - Manufacturer Info: "NhÃÂ  sÃ¡ÂºÂ£n xuÃ¡ÂºÂ¥t: ${data.manufacturer}"
     - Other Details: ${data.dosage}, ${data.usage}
 
     VISUAL EXECUTION REQUIREMENTS:
     1. STYLE: Photorealistic, 8k resolution, cinematic studio lighting, premium medical aesthetic.
     2. COMPOSITION: Place the product box (modeled after the attached image) as the central focus. 
-    3. THE PRICE HERO: Describe a premium, eye-catching 3D UI element or glowing badge that displays "GÃ­a mua tá»« IDECO chá»: ${data.idecoPrice}" in bold, large, attractive typography.
-    4. SECONDARY PRICE: Describe the "GÃ­a NiÃªm Yáº¿t: ${data.listPrice}" text placed subtly but clearly near the main price to show the value.
+    3. THE PRICE HERO: Describe a premium, eye-catching 3D UI element or glowing badge that displays "GÃÂ­a mua tÃ¡Â»Â« IDECO chÃ¡Â»Â: ${data.idecoPrice}" in bold, large, attractive typography.
+    4. SECONDARY PRICE: Describe the "GÃÂ­a NiÃÂªm YÃ¡ÂºÂ¿t: ${data.listPrice}" text placed subtly but clearly near the main price to show the value.
     5. BRANDING: The background should be a high-end pharmacy, a clean laboratory, or a professional minimalist clinic.
-    6. REGULATORY: ${data.isETC ? 'Include a professional red "THUá»C KÃ TOA" stamp in the corner.' : ''}
+    6. REGULATORY: ${data.isETC ? 'Include a professional red "THUÃ¡Â»ÂC KÃÂ TOA" stamp in the corner.' : ''}
     
     IMPORTANT: Do not mention "9:16" or "16:9". Simply describe it as a "Vertical Poster" and ensure all price details above are integrated into the visual description.
     
