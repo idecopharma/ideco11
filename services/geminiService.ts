@@ -7,7 +7,7 @@ import { ProductData } from "../types";
  * FORCED: Vertical layout and specific price information.
  */
 export const generateOptimizedPrompt = async (data: ProductData): Promise<string> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || 'FAKE_API_KEY_FOR_DEVELOPMENT' });
 
   try {
     const parts: any[] = [];
@@ -24,30 +24,30 @@ export const generateOptimizedPrompt = async (data: ProductData): Promise<string
     }
 
     const promptInput = `
-    Vai trò: Giám đốc sáng tạo chuyên nghiệp cho quảng cáo dược phẩm cao cấp.
-    Nhiệm vụ: Viết một mô tả chi tiết (prompt) bằng TIẾNG VIỆT để tạo poster quảng cáo thuốc chuyên nghiệp cho công cụ tạo ảnh AI.
+    Vai trÃ²: GiÃ¡m Äá»c sÃ¡ng táº¡o chuyÃªn nghiá»p cho quáº£ng cÃ¡o dÆ°á»£c pháº©m cao cáº¥p.
+    Nhiá»m vá»¥: Viáº¿t má»t mÃ´ táº£ chi tiáº¿t (prompt) báº±ng TIáº¾NG VIá»T Äá» táº¡o poster quáº£ng cÃ¡o thuá»c chuyÃªn nghiá»p cho cÃ´ng cá»¥ táº¡o áº£nh AI.
 
-    ĐỊNH HƯỚNG BẮT BUỘC:
-    - Đây PHẢI là **Poster Khổ Dọc** (Portrait orientation). Mô tả bố cục cho khung hình cao.
+    Äá»NH HÆ¯á»NG Báº®T BUá»C:
+    - ÄÃ¢y PHáº¢I lÃ  **Poster Khá» Dá»c** (Portrait orientation). MÃ´ táº£ bá» cá»¥c cho khung hÃ¬nh cao.
 
-    CÁC THÀNH PHẦN VĂN BẢN BẮT BUỘC PHẢI MÔ TẢ TRONG POSTER:
-    - Tên sản phẩm chính: "${data.name}"
-    - Giá niêm yết: "Gía Niêm Yết: ${data.listPrice}"
-    - Giá khuyến mãi: "Gía mua từ IDECO chỉ: ${data.idecoPrice}"
-    - Nhà sản xuất: "Nhà sản xuất: ${data.manufacturer}"
-    - Chi tiết khác: ${data.dosage}, ${data.usage}
+    CÃC THÃNH PHáº¦N VÄN Báº¢N Báº®T BUá»C PHáº¢I MÃ Táº¢ TRONG POSTER:
+    - TÃªn sáº£n pháº©m chÃ­nh: "${data.name}"
+    - GiÃ¡ niÃªm yáº¿t: "GÃ­a NiÃªm Yáº¿t: ${data.listPrice}"
+    - GiÃ¡ khuyáº¿n mÃ£i: "GÃ­a mua tá»« IDECO chá»: ${data.idecoPrice}"
+    - NhÃ  sáº£n xuáº¥t: "NhÃ  sáº£n xuáº¥t: ${data.manufacturer}"
+    - Chi tiáº¿t khÃ¡c: ${data.dosage}, ${data.usage}
 
-    YÊU CẦU THỰC THI HÌNH ẢNH:
-    1. PHONG CÁCH: Chân thực như ảnh chụp (Photorealistic), độ phân giải 8k, ánh sáng studio điện ảnh, thẩm mỹ y tế cao cấp.
-    2. BỐ CỤC: Đặt hộp thuốc (dựa trên hình ảnh đính kèm) làm tâm điểm chính. 
-    3. ĐIỂM NHẤN VỀ GIÁ: Mô tả một yếu tố UI 3D sang trọng hoặc huy hiệu phát sáng hiển thị "Gía mua từ IDECO chỉ: ${data.idecoPrice}" với kiểu chữ đậm, lớn, hấp dẫn.
-    4. GIÁ PHỤ: Mô tả dòng chữ "Gía Niêm Yết: ${data.listPrice}" được đặt tinh tế nhưng rõ ràng gần giá chính để thể hiện giá trị so sánh.
-    5. THƯƠNG HIỆU: Nền nên là một nhà thuốc cao cấp, phòng thí nghiệm sạch sẽ, hoặc phòng khám tối giản chuyên nghiệp.
-    6. PHÁP LÝ: ${data.isETC ? 'Bao gồm con dấu đỏ chuyên nghiệp "THUỐC KÊ TOA" ở góc.' : ''}
+    YÃU Cáº¦U THá»°C THI HÃNH áº¢NH:
+    1. PHONG CÃCH: ChÃ¢n thá»±c nhÆ° áº£nh chá»¥p (Photorealistic), Äá» phÃ¢n giáº£i 8k, Ã¡nh sÃ¡ng studio Äiá»n áº£nh, tháº©m má»¹ y táº¿ cao cáº¥p.
+    2. Bá» Cá»¤C: Äáº·t há»p thuá»c (dá»±a trÃªn hÃ¬nh áº£nh ÄÃ­nh kÃ¨m) lÃ m tÃ¢m Äiá»m chÃ­nh. 
+    3. ÄIá»M NHáº¤N Vá» GIÃ: MÃ´ táº£ má»t yáº¿u tá» UI 3D sang trá»ng hoáº·c huy hiá»u phÃ¡t sÃ¡ng hiá»n thá» "GÃ­a mua tá»« IDECO chá»: ${data.idecoPrice}" vá»i kiá»u chá»¯ Äáº­m, lá»n, háº¥p dáº«n.
+    4. GIÃ PHá»¤: MÃ´ táº£ dÃ²ng chá»¯ "GÃ­a NiÃªm Yáº¿t: ${data.listPrice}" ÄÆ°á»£c Äáº·t tinh táº¿ nhÆ°ng rÃµ rÃ ng gáº§n giÃ¡ chÃ­nh Äá» thá» hiá»n giÃ¡ trá» so sÃ¡nh.
+    5. THÆ¯Æ NG HIá»U: Ná»n nÃªn lÃ  má»t nhÃ  thuá»c cao cáº¥p, phÃ²ng thÃ­ nghiá»m sáº¡ch sáº½, hoáº·c phÃ²ng khÃ¡m tá»i giáº£n chuyÃªn nghiá»p.
+    6. PHÃP LÃ: ${data.isETC ? 'Bao gá»m con dáº¥u Äá» chuyÃªn nghiá»p "THUá»C KÃ TOA" á» gÃ³c.' : ''}
     
-    QUAN TRỌNG: Không nhắc đến "9:16" hay "16:9". Chỉ mô tả đơn giản là "Poster Khổ Dọc" và đảm bảo tất cả chi tiết giá cả ở trên được tích hợp vào mô tả hình ảnh.
+    QUAN TRá»NG: KhÃ´ng nháº¯c Äáº¿n "9:16" hay "16:9". Chá» mÃ´ táº£ ÄÆ¡n giáº£n lÃ  "Poster Khá» Dá»c" vÃ  Äáº£m báº£o táº¥t cáº£ chi tiáº¿t giÃ¡ cáº£ á» trÃªn ÄÆ°á»£c tÃ­ch há»£p vÃ o mÃ´ táº£ hÃ¬nh áº£nh.
     
-    ĐẦU RA: Chỉ trả về văn bản prompt cuối cùng bằng TIẾNG VIỆT. Không thêm lời dẫn chuyện.
+    Äáº¦U RA: Chá» tráº£ vá» vÄn báº£n prompt cuá»i cÃ¹ng báº±ng TIáº¾NG VIá»T. KhÃ´ng thÃªm lá»i dáº«n chuyá»n.
     `;
 
     parts.push({ text: promptInput });
@@ -57,7 +57,7 @@ export const generateOptimizedPrompt = async (data: ProductData): Promise<string
       contents: [{ role: 'user', parts: parts }]
     });
 
-    return response.text || "Không thể tạo prompt.";
+    return response.text || "KhÃ´ng thá» táº¡o prompt.";
   } catch (error) {
     console.error("Gemini API Error:", error);
     throw error; 
@@ -72,7 +72,7 @@ export const processProductImageAI = async (
   mimeType: string, 
   task: 'remove-bg' | 'make-3d'
 ): Promise<string> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || 'FAKE_API_KEY_FOR_DEVELOPMENT' });
   const data = base64Image.includes(',') ? base64Image.split(',')[1] : base64Image;
   
   const prompts = {
