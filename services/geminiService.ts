@@ -7,7 +7,7 @@ import { ProductData } from "../types";
  * FORCED: Vertical layout and specific price information.
  */
 export const generateOptimizedPrompt = async (data: ProductData): Promise<string> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || 'FAKE_API_KEY_FOR_DEVELOPMENT' });
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
   try {
     const parts: any[] = [];
@@ -24,30 +24,30 @@ export const generateOptimizedPrompt = async (data: ProductData): Promise<string
     }
 
     const promptInput = `
-    Role: Professional Creative Director for High-End Pharmaceutical Advertising.
-    Task: Create a highly detailed English prompt for an AI image generator (like Midjourney or Stable Diffusion) to create a professional medical poster.
+    Vai trò: Giám đốc sáng tạo chuyên nghiệp cho quảng cáo dược phẩm cao cấp.
+    Nhiệm vụ: Viết một mô tả chi tiết (prompt) bằng TIẾNG VIỆT để tạo poster quảng cáo thuốc chuyên nghiệp cho công cụ tạo ảnh AI.
 
-    MANDATORY ORIENTATION:
-    - This MUST be a **Vertical Poster** (Portrait orientation). Describe the composition for a tall frame.
+    ĐỊNH HƯỚNG BẮT BUỘC:
+    - Đây PHẢI là **Poster Khổ Dọc** (Portrait orientation). Mô tả bố cục cho khung hình cao.
 
-    MANDATORY TEXT ELEMENTS TO BE DESCRIBED IN THE POSTER:
-    - Main Product Title: "${data.name}"
-    - List Price Tag: "GÃÂ­a NiÃÂªm YÃ¡ÂºÂ¿t: ${data.listPrice}"
-    - Special Offer Tag: "GÃÂ­a mua tÃ¡Â»Â« IDECO chÃ¡Â»Â: ${data.idecoPrice}"
-    - Manufacturer Info: "NhÃÂ  sÃ¡ÂºÂ£n xuÃ¡ÂºÂ¥t: ${data.manufacturer}"
-    - Other Details: ${data.dosage}, ${data.usage}
+    CÁC THÀNH PHẦN VĂN BẢN BẮT BUỘC PHẢI MÔ TẢ TRONG POSTER:
+    - Tên sản phẩm chính: "${data.name}"
+    - Giá niêm yết: "Gía Niêm Yết: ${data.listPrice}"
+    - Giá khuyến mãi: "Gía mua từ IDECO chỉ: ${data.idecoPrice}"
+    - Nhà sản xuất: "Nhà sản xuất: ${data.manufacturer}"
+    - Chi tiết khác: ${data.dosage}, ${data.usage}
 
-    VISUAL EXECUTION REQUIREMENTS:
-    1. STYLE: Photorealistic, 8k resolution, cinematic studio lighting, premium medical aesthetic.
-    2. COMPOSITION: Place the product box (modeled after the attached image) as the central focus. 
-    3. THE PRICE HERO: Describe a premium, eye-catching 3D UI element or glowing badge that displays "GÃÂ­a mua tÃ¡Â»Â« IDECO chÃ¡Â»Â: ${data.idecoPrice}" in bold, large, attractive typography.
-    4. SECONDARY PRICE: Describe the "GÃÂ­a NiÃÂªm YÃ¡ÂºÂ¿t: ${data.listPrice}" text placed subtly but clearly near the main price to show the value.
-    5. BRANDING: The background should be a high-end pharmacy, a clean laboratory, or a professional minimalist clinic.
-    6. REGULATORY: ${data.isETC ? 'Include a professional red "THUÃ¡Â»ÂC KÃÂ TOA" stamp in the corner.' : ''}
+    YÊU CẦU THỰC THI HÌNH ẢNH:
+    1. PHONG CÁCH: Chân thực như ảnh chụp (Photorealistic), độ phân giải 8k, ánh sáng studio điện ảnh, thẩm mỹ y tế cao cấp.
+    2. BỐ CỤC: Đặt hộp thuốc (dựa trên hình ảnh đính kèm) làm tâm điểm chính. 
+    3. ĐIỂM NHẤN VỀ GIÁ: Mô tả một yếu tố UI 3D sang trọng hoặc huy hiệu phát sáng hiển thị "Gía mua từ IDECO chỉ: ${data.idecoPrice}" với kiểu chữ đậm, lớn, hấp dẫn.
+    4. GIÁ PHỤ: Mô tả dòng chữ "Gía Niêm Yết: ${data.listPrice}" được đặt tinh tế nhưng rõ ràng gần giá chính để thể hiện giá trị so sánh.
+    5. THƯƠNG HIỆU: Nền nên là một nhà thuốc cao cấp, phòng thí nghiệm sạch sẽ, hoặc phòng khám tối giản chuyên nghiệp.
+    6. PHÁP LÝ: ${data.isETC ? 'Bao gồm con dấu đỏ chuyên nghiệp "THUỐC KÊ TOA" ở góc.' : ''}
     
-    IMPORTANT: Do not mention "9:16" or "16:9". Simply describe it as a "Vertical Poster" and ensure all price details above are integrated into the visual description.
+    QUAN TRỌNG: Không nhắc đến "9:16" hay "16:9". Chỉ mô tả đơn giản là "Poster Khổ Dọc" và đảm bảo tất cả chi tiết giá cả ở trên được tích hợp vào mô tả hình ảnh.
     
-    OUTPUT: Return only the final English prompt text. No conversational filler.
+    ĐẦU RA: Chỉ trả về văn bản prompt cuối cùng bằng TIẾNG VIỆT. Không thêm lời dẫn chuyện.
     `;
 
     parts.push({ text: promptInput });
@@ -57,7 +57,7 @@ export const generateOptimizedPrompt = async (data: ProductData): Promise<string
       contents: [{ role: 'user', parts: parts }]
     });
 
-    return response.text || "Failed to generate prompt.";
+    return response.text || "Không thể tạo prompt.";
   } catch (error) {
     console.error("Gemini API Error:", error);
     throw error; 
@@ -72,7 +72,7 @@ export const processProductImageAI = async (
   mimeType: string, 
   task: 'remove-bg' | 'make-3d'
 ): Promise<string> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || 'FAKE_API_KEY_FOR_DEVELOPMENT' });
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const data = base64Image.includes(',') ? base64Image.split(',')[1] : base64Image;
   
   const prompts = {
