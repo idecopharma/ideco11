@@ -7,7 +7,7 @@ import { ProductData } from "../types";
  * FORCED: Vertical layout and specific price information.
  */
 export const generateOptimizedPrompt = async (data: ProductData): Promise<string> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || 'FAKE_API_KEY_FOR_DEVELOPMENT' });
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
   try {
     const parts: any[] = [];
@@ -23,31 +23,47 @@ export const generateOptimizedPrompt = async (data: ProductData): Promise<string
       });
     }
 
+    // Determine the visual direction based on user input or default
+    const userVisualDirection = data.description && data.description.trim() !== ''
+      ? data.description
+      : "Chụp cận cảnh sản phẩm 3D (Packshot) chất lượng cao, đặt trên bục trưng bày sang trọng, ánh sáng studio.";
+
     const promptInput = `
-    Vai trÃ²: GiÃ¡m Äá»c sÃ¡ng táº¡o chuyÃªn nghiá»p cho quáº£ng cÃ¡o dÆ°á»£c pháº©m cao cáº¥p.
-    Nhiá»m vá»¥: Viáº¿t má»t mÃ´ táº£ chi tiáº¿t (prompt) báº±ng TIáº¾NG VIá»T Äá» táº¡o poster quáº£ng cÃ¡o thuá»c chuyÃªn nghiá»p cho cÃ´ng cá»¥ táº¡o áº£nh AI.
+    Vai trò: Giám đốc sáng tạo chuyên nghiệp cho quảng cáo dược phẩm cao cấp.
+    Nhiệm vụ: Viết một mô tả chi tiết (prompt) bằng TIẾNG VIỆT để tạo poster quảng cáo thuốc chuyên nghiệp cho công cụ tạo ảnh AI.
 
-    Äá»NH HÆ¯á»NG Báº®T BUá»C:
-    - ÄÃ¢y PHáº¢I lÃ  **Poster Khá» Dá»c** (Portrait orientation). MÃ´ táº£ bá» cá»¥c cho khung hÃ¬nh cao.
+    --- THÔNG TIN QUAN TRỌNG TỪ NGƯỜI DÙNG ---
+    Ý TƯỞNG HÌNH ẢNH CỐT LÕI: "${userVisualDirection}"
+    (Hãy bám sát ý tưởng này. Nếu người dùng yêu cầu Dược Sĩ, hãy mô tả người Dược Sĩ. Nếu yêu cầu Packshot 3D, hãy mô tả sản phẩm 3D).
 
-    CÃC THÃNH PHáº¦N VÄN Báº¢N Báº®T BUá»C PHáº¢I MÃ Táº¢ TRONG POSTER:
-    - TÃªn sáº£n pháº©m chÃ­nh: "${data.name}"
-    - GiÃ¡ niÃªm yáº¿t: "GÃ­a NiÃªm Yáº¿t: ${data.listPrice}"
-    - GiÃ¡ khuyáº¿n mÃ£i: "GÃ­a mua tá»« IDECO chá»: ${data.idecoPrice}"
-    - NhÃ  sáº£n xuáº¥t: "NhÃ  sáº£n xuáº¥t: ${data.manufacturer}"
-    - Chi tiáº¿t khÃ¡c: ${data.dosage}, ${data.usage}
+    --- ĐỊNH HƯỚNG KỸ THUẬT ---
+    - Kích thước: Poster Khổ Dọc (Portrait).
+    - Phong cách: Chân thực như ảnh chụp (Photorealistic), 8k, chi tiết cao.
 
-    YÃU Cáº¦U THá»°C THI HÃNH áº¢NH:
-    1. PHONG CÃCH: ChÃ¢n thá»±c nhÆ° áº£nh chá»¥p (Photorealistic), Äá» phÃ¢n giáº£i 8k, Ã¡nh sÃ¡ng studio Äiá»n áº£nh, tháº©m má»¹ y táº¿ cao cáº¥p.
-    2. Bá» Cá»¤C: Äáº·t há»p thuá»c (dá»±a trÃªn hÃ¬nh áº£nh ÄÃ­nh kÃ¨m) lÃ m tÃ¢m Äiá»m chÃ­nh. 
-    3. ÄIá»M NHáº¤N Vá» GIÃ: MÃ´ táº£ má»t yáº¿u tá» UI 3D sang trá»ng hoáº·c huy hiá»u phÃ¡t sÃ¡ng hiá»n thá» "GÃ­a mua tá»« IDECO chá»: ${data.idecoPrice}" vá»i kiá»u chá»¯ Äáº­m, lá»n, háº¥p dáº«n.
-    4. GIÃ PHá»¤: MÃ´ táº£ dÃ²ng chá»¯ "GÃ­a NiÃªm Yáº¿t: ${data.listPrice}" ÄÆ°á»£c Äáº·t tinh táº¿ nhÆ°ng rÃµ rÃ ng gáº§n giÃ¡ chÃ­nh Äá» thá» hiá»n giÃ¡ trá» so sÃ¡nh.
-    5. THÆ¯Æ NG HIá»U: Ná»n nÃªn lÃ  má»t nhÃ  thuá»c cao cáº¥p, phÃ²ng thÃ­ nghiá»m sáº¡ch sáº½, hoáº·c phÃ²ng khÃ¡m tá»i giáº£n chuyÃªn nghiá»p.
-    6. PHÃP LÃ: ${data.isETC ? 'Bao gá»m con dáº¥u Äá» chuyÃªn nghiá»p "THUá»C KÃ TOA" á» gÃ³c.' : ''}
+    --- NỘI DUNG VĂN BẢN TRÊN POSTER (TEXT ELEMENTS) ---
+    Yêu cầu AI vẽ các dòng chữ sau lên ảnh (nếu công cụ hỗ trợ render text):
+    1. Tên sản phẩm: "${data.name}"
+    2. Giá khuyến mãi (Nổi bật nhất): "Gía mua từ IDECO chỉ: ${data.idecoPrice}"
+    3. Giá niêm yết (Nhỏ hơn): "Gía Niêm Yết: ${data.listPrice}"
+    4. Nhà sản xuất: "Nhà sản xuất: ${data.manufacturer}"
+    5. Thông tin khác: ${data.dosage}, ${data.usage}
+
+    --- HƯỚNG DẪN CHI TIẾT CHO AI VẼ ẢNH ---
+    1. BỐ CỤC: 
+       - Nếu là "Dược sĩ": Mô tả một dược sĩ (Nam hoặc Nữ tùy theo Ý TƯỞNG CỐT LÕI ở trên) mặc áo blouse trắng, ngoại hình tin cậy, chuyên nghiệp, đang cầm sản phẩm thuốc trên tay hoặc đứng bên cạnh sản phẩm phóng to.
+       - Nếu là "Packshot": Sản phẩm là nhân vật chính, đặt giữa trung tâm, ánh sáng kịch tính (rembrandt lighting).
     
-    QUAN TRá»NG: KhÃ´ng nháº¯c Äáº¿n "9:16" hay "16:9". Chá» mÃ´ táº£ ÄÆ¡n giáº£n lÃ  "Poster Khá» Dá»c" vÃ  Äáº£m báº£o táº¥t cáº£ chi tiáº¿t giÃ¡ cáº£ á» trÃªn ÄÆ°á»£c tÃ­ch há»£p vÃ o mÃ´ táº£ hÃ¬nh áº£nh.
-    
-    Äáº¦U RA: Chá» tráº£ vá» vÄn báº£n prompt cuá»i cÃ¹ng báº±ng TIáº¾NG VIá»T. KhÃ´ng thÃªm lá»i dáº«n chuyá»n.
+    2. HIỂN THỊ GIÁ: 
+       - Mô tả một huy hiệu (badge) hoặc thẻ giá thiết kế sang trọng, hiện đại nằm ở vị trí dễ nhìn (ví dụ: góc dưới hoặc treo lơ lửng) chứa nội dung giá.
+
+    3. KHÔNG GIAN: 
+       - Nhà thuốc tây hiện đại, sạch sẽ, tông màu trắng/xanh y tế hoặc màu nhận diện của thương hiệu thuốc.
+
+    4. PHÁP LÝ: 
+       - ${data.isETC ? 'Có con dấu đỏ hoặc nhãn cảnh báo "THUỐC KÊ TOA" ở góc poster.' : ''}
+
+    ĐẦU RA YÊU CẦU:
+    Chỉ trả về đoạn văn mô tả (prompt) hoàn chỉnh bằng TIẾNG VIỆT. Không thêm lời dẫn, không giải thích.
     `;
 
     parts.push({ text: promptInput });
@@ -57,7 +73,7 @@ export const generateOptimizedPrompt = async (data: ProductData): Promise<string
       contents: [{ role: 'user', parts: parts }]
     });
 
-    return response.text || "KhÃ´ng thá» táº¡o prompt.";
+    return response.text || "Không thể tạo prompt.";
   } catch (error) {
     console.error("Gemini API Error:", error);
     throw error; 
@@ -72,7 +88,7 @@ export const processProductImageAI = async (
   mimeType: string, 
   task: 'remove-bg' | 'make-3d'
 ): Promise<string> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || 'FAKE_API_KEY_FOR_DEVELOPMENT' });
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const data = base64Image.includes(',') ? base64Image.split(',')[1] : base64Image;
   
   const prompts = {
