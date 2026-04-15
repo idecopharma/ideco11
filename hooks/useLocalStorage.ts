@@ -46,14 +46,16 @@ function useLocalStorage<T>(key: string, initialValue: T): [T, React.Dispatch<Re
       }
 
       try {
-        const valueToStore = value instanceof Function ? value(storedValue) : value;
-        setStoredValue(valueToStore);
-        window.localStorage.setItem(key, JSON.stringify(valueToStore));
+        setStoredValue((prevStoredValue) => {
+          const valueToStore = value instanceof Function ? value(prevStoredValue) : value;
+          window.localStorage.setItem(key, JSON.stringify(valueToStore));
+          return valueToStore;
+        });
       } catch (error) {
         console.error(`Error setting localStorage key “${key}”:`, error);
       }
     },
-    [key, storedValue]
+    [key]
   );
 
   return [storedValue, setValue];

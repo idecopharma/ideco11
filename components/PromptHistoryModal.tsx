@@ -16,6 +16,7 @@ export const PromptHistoryModal: React.FC<PromptHistoryModalProps> = ({
   onDelete
 }) => {
   const [copiedId, setCopiedId] = React.useState<string | null>(null);
+  const [expandedId, setExpandedId] = React.useState<string | null>(null);
 
   if (!isOpen) return null;
 
@@ -23,6 +24,10 @@ export const PromptHistoryModal: React.FC<PromptHistoryModalProps> = ({
     navigator.clipboard.writeText(prompt);
     setCopiedId(id);
     setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const toggleExpand = (id: string) => {
+    setExpandedId(prev => prev === id ? null : id);
   };
 
   const formatDate = (timestamp: number) => {
@@ -63,6 +68,12 @@ export const PromptHistoryModal: React.FC<PromptHistoryModalProps> = ({
                     </div>
                     <div className="flex gap-2">
                       <button
+                        onClick={() => toggleExpand(item.id)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md text-indigo-600 bg-white border border-indigo-200 hover:bg-indigo-50 transition-colors"
+                      >
+                        {expandedId === item.id ? 'Ẩn prompt' : 'Xem prompt'}
+                      </button>
+                      <button
                         onClick={() => handleCopy(item.id, item.prompt)}
                         className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors border
                           ${copiedId === item.id 
@@ -82,11 +93,13 @@ export const PromptHistoryModal: React.FC<PromptHistoryModalProps> = ({
                       </button>
                     </div>
                   </div>
-                  <div className="p-4 bg-slate-900 overflow-x-auto custom-scrollbar">
-                    <pre className="text-sm font-mono text-indigo-200 whitespace-pre-wrap leading-relaxed">
-                      {item.prompt}
-                    </pre>
-                  </div>
+                  {expandedId === item.id && (
+                    <div className="p-4 bg-slate-900 overflow-x-auto custom-scrollbar">
+                      <pre className="text-sm font-mono text-indigo-200 whitespace-pre-wrap leading-relaxed">
+                        {item.prompt}
+                      </pre>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
