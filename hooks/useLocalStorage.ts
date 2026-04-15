@@ -46,20 +46,14 @@ function useLocalStorage<T>(key: string, initialValue: T): [T, React.Dispatch<Re
       }
 
       try {
-        // The value can be a new value, or a function that receives the previous state.
         const valueToStore = value instanceof Function ? value(storedValue) : value;
-        
-        // Update React state.
         setStoredValue(valueToStore);
-        
-        // Update localStorage.
         window.localStorage.setItem(key, JSON.stringify(valueToStore));
-      } catch (error)
-        {
+      } catch (error) {
         console.error(`Error setting localStorage key “${key}”:`, error);
       }
     },
-    [key, storedValue] // Dependency on storedValue ensures the functional update `value(storedValue)` uses the latest state.
+    [key, storedValue]
   );
 
   return [storedValue, setValue];

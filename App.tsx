@@ -1,13 +1,15 @@
 
 import React, { useState } from 'react';
-import { ProductForm } from './components/ProductForm.tsx';
-import { ResultDisplay } from './components/ResultDisplay.tsx';
-import { ExternalToolModal } from './components/ExternalToolModal.tsx';
-import { ExcelImportModal } from './components/ExcelImportModal.tsx';
-import { ProductData, GeneratedResult, AppState, ExcelMapping } from './types.ts';
-import { generateOptimizedPrompt, processProductImageAI } from './services/geminiService.ts';
-import { PenTool, BrainCircuit, Table, Image as ImageIcon } from 'lucide-react';
-import useLocalStorage from './hooks/useLocalStorage.ts';
+import { ProductForm } from './components/ProductForm';
+import { ResultDisplay } from './components/ResultDisplay';
+import { ExternalToolModal } from './components/ExternalToolModal';
+import { ExcelImportModal } from './components/ExcelImportModal';
+import { PromptHistoryModal } from './components/PromptHistoryModal';
+import { ApiKeyModal } from './components/ApiKeyModal';
+import { ProductData, GeneratedResult, AppState, ExcelMapping, SavedPrompt } from './types';
+import { generateOptimizedPrompt, processProductImageAI, generateImageFromPrompt } from './services/geminiService';
+import { PenTool, BrainCircuit, Table, Image as ImageIcon, History, Key } from 'lucide-react';
+import useLocalStorage from './hooks/useLocalStorage';
 
 const createEmptyProduct = (id: number): ProductData => ({
   id,
@@ -28,14 +30,16 @@ const App: React.FC = () => {
   const [products, setProducts] = useState<ProductData[]>([
     createEmptyProduct(1),
     createEmptyProduct(2),
-    createEmptyProduct(3)
+    createEmptyProduct(3),
+    createEmptyProduct(4)
   ]);
   
   const [activeTab, setActiveTab] = useState<number>(1);
   const [results, setResults] = useState<GeneratedResult[]>([
     { id: 1, prompt: '', status: 'pending' },
     { id: 2, prompt: '', status: 'pending' },
-    { id: 3, prompt: '', status: 'pending' }
+    { id: 3, prompt: '', status: 'pending' },
+    { id: 4, prompt: '', status: 'pending' }
   ]);
   
   const [appState, setAppState] = useState<AppState>(AppState.IDLE);
@@ -52,6 +56,11 @@ const App: React.FC = () => {
   });
   
   const [excelModalOpen, setExcelModalOpen] = useState(false);
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
+
+  const [savedPrompts, setSavedPrompts] = useLocalStorage<SavedPrompt[]>('savedPrompts', []);
+  const [userApiKey, setUserApiKey] = useLocalStorage<string>('userApiKey', '');
 
   const handleFieldChange = (id: number, field: keyof ProductData, value: string | boolean) => {
     setProducts(prev => prev.map(p => p.id === id ? { ...p, [field]: value } : p));
@@ -83,7 +92,7 @@ const App: React.FC = () => {
     
     setIsImageProcessing(true);
     try {
-      const processedBase64 = await processProductImageAI(product.imageBase64, product.mimeType, task);
+      const processedBase64 = await processProductImageAI(product.imageBase64, product.mimeType, task, userApiKey);
       setProducts(prev => prev.map(p => p.id === id ? { 
         ...p, 
         imageBase64: processedBase64,
@@ -97,23 +106,36 @@ const App: React.FC = () => {
   };
 
   const handleGenerateAll = async () => {
-    if (!process.env.API_KEY) {
-        alert("Thiếu API Key.");
+    if (!userApiKey && !process.env.API_KEY) {
+        alert("Thiếu API Key. Vui lòng nhập API Key trong phần cài đặt.");
+        setIsApiKeyModalOpen(true);
         return;
     }
 
     setAppState(AppState.PROCESSING);
     setResults(prev => prev.map(r => {
         const prod = products.find(p => p.id === r.id);
-        if (prod && prod.name) return { ...r, status: 'loading', prompt: '' };
+        if (prod && prod.name) return { ...r, status: 'loading', prompt: '', imageStatus: 'idle', imageUrl: undefined, imageError: undefined };
         return r;
     }));
 
     const promises = products.map(async (product) => {
       if (!product.name) return;
       try {
-        const prompt = await generateOptimizedPrompt(product);
+        const prompt = await generateOptimizedPrompt(product, userApiKey);
         setResults(prev => prev.map(r => r.id === product.id ? { ...r, prompt, status: 'success' } : r));
+        
+        // Save to local storage
+        setSavedPrompts(prev => {
+          const prevArray = Array.isArray(prev) ? prev : [];
+          const newPrompt: SavedPrompt = {
+            id: Date.now().toString() + Math.random().toString(36).substring(2, 9),
+            productName: product.name,
+            prompt: prompt,
+            timestamp: Date.now()
+          };
+          return [newPrompt, ...prevArray];
+        });
       } catch (error) {
         setResults(prev => prev.map(r => r.id === product.id ? { ...r, prompt: String(error), status: 'error' } : r));
       }
@@ -123,13 +145,33 @@ const App: React.FC = () => {
     setAppState(AppState.COMPLETE);
   };
 
+  const handleGenerateImage = async (id: number, prompt: string) => {
+    if (!userApiKey && !process.env.API_KEY) {
+        alert("Thiếu API Key. Vui lòng nhập API Key trong phần cài đặt.");
+        setIsApiKeyModalOpen(true);
+        return;
+    }
+
+    const product = products.find(p => p.id === id);
+    if (!product) return;
+
+    setResults(prev => prev.map(r => r.id === id ? { ...r, imageStatus: 'loading', imageError: undefined } : r));
+
+    try {
+      const imageUrl = await generateImageFromPrompt(prompt, product.aspectRatio, product.imageBase64, product.mimeType, userApiKey);
+      setResults(prev => prev.map(r => r.id === id ? { ...r, imageStatus: 'success', imageUrl } : r));
+    } catch (error) {
+      setResults(prev => prev.map(r => r.id === id ? { ...r, imageStatus: 'error', imageError: String(error) } : r));
+    }
+  };
+
   const handleExcelImport = (importedProducts: ProductData[], rawData: any[], mapping: ExcelMapping) => {
     setMasterLibrary(rawData);
     setColumnMapping(mapping);
     setProducts(prev => {
         const newProducts = [...prev];
         importedProducts.forEach((imp, index) => {
-            if (index < 3) {
+            if (index < 4) {
                 newProducts[index] = { ...createEmptyProduct(index + 1), ...imp, id: index + 1 };
             }
         });
@@ -170,15 +212,17 @@ const App: React.FC = () => {
           <div className="flex items-center gap-3">
             <div className="bg-indigo-600 text-white p-2.5 rounded-xl shadow-lg"><PenTool className="w-6 h-6" /></div>
             <div>
-              <h1 className="text-2xl md:text-3xl font-extrabold text-slate-800 tracking-tight">Pharma Poster AI</h1>
-              <p className="text-slate-500 text-sm font-medium">Hệ thống tạo Prompt marketing thuốc chuyên nghiệp</p>
+              <h1 className="text-2xl md:text-3xl font-extrabold text-slate-800">Pharma Prompt AI</h1>
+              <p className="text-slate-500 text-sm font-medium">Xử lý ảnh & tạo Prompt hàng loạt (4 SP)</p>
             </div>
           </div>
 
-          <div className="flex gap-3">
-            <button onClick={() => setExcelModalOpen(true)} className="flex items-center gap-2 px-5 py-2.5 bg-white text-emerald-700 font-black rounded-xl shadow-sm border-2 border-emerald-100 hover:bg-emerald-50 transition-all active:scale-95 uppercase text-xs tracking-wider"><Table className="w-5 h-5" /> Quản lý Bảng Giá</button>
-            <button onClick={() => window.open('https://lmarena.ai/', '_blank')} className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-pink-500 to-rose-500 text-white font-black rounded-xl shadow-lg shadow-pink-100 hover:shadow-pink-200 transition-all active:scale-95 uppercase text-xs tracking-wider"><ImageIcon className="w-5 h-5" /> Vẽ Ảnh AI</button>
-            <button onClick={() => setExternalTool({ isOpen: true, type: 'mind' })} className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-black rounded-xl shadow-lg shadow-indigo-100 hover:shadow-indigo-200 transition-all active:scale-95 uppercase text-xs tracking-wider"><BrainCircuit className="w-5 h-5" /> Mind AI</button>
+          <div className="flex flex-wrap gap-2 md:gap-3">
+            <button onClick={() => setIsApiKeyModalOpen(true)} className="flex items-center gap-2 px-3 md:px-4 py-2 bg-white text-slate-700 font-bold rounded-lg shadow border border-slate-200 hover:bg-slate-50 transition-all active:scale-95"><Key className="w-5 h-5" /> <span className="hidden md:inline">API Key</span></button>
+            <button onClick={() => setIsHistoryModalOpen(true)} className="flex items-center gap-2 px-3 md:px-4 py-2 bg-white text-indigo-700 font-bold rounded-lg shadow border border-indigo-200 hover:bg-indigo-50 transition-all active:scale-95"><History className="w-5 h-5" /> <span className="hidden md:inline">Lịch sử</span></button>
+            <button onClick={() => setExcelModalOpen(true)} className="flex items-center gap-2 px-3 md:px-4 py-2 bg-white text-emerald-700 font-bold rounded-lg shadow border border-emerald-200 hover:bg-emerald-50 transition-all active:scale-95"><Table className="w-5 h-5" /> <span className="hidden md:inline">Excel</span></button>
+            <button onClick={() => window.open('https://lmarena.ai/', '_blank')} className="flex items-center gap-2 px-3 md:px-4 py-2 bg-gradient-to-r from-pink-500 to-rose-500 text-white font-bold rounded-lg shadow-md hover:shadow-lg transition-all active:scale-95"><ImageIcon className="w-5 h-5" /> <span className="hidden md:inline">Tạo Ảnh</span></button>
+            <button onClick={() => setExternalTool({ isOpen: true, type: 'mind' })} className="flex items-center gap-2 px-3 md:px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold rounded-lg shadow-md hover:shadow-lg transition-all active:scale-95"><BrainCircuit className="w-5 h-5" /> <span className="hidden md:inline">Mind</span></button>
           </div>
         </header>
 
@@ -192,7 +236,7 @@ const App: React.FC = () => {
             />
           </div>
           <div className="lg:col-span-5">
-            <ResultDisplay results={results} appState={appState} />
+            <ResultDisplay results={results} appState={appState} onGenerateImage={handleGenerateImage} />
           </div>
         </main>
       </div>
@@ -206,6 +250,20 @@ const App: React.FC = () => {
         isOpen={excelModalOpen} onClose={() => setExcelModalOpen(false)}
         onImport={handleExcelImport} onSave={(rawData, mapping) => { setMasterLibrary(rawData); setColumnMapping(mapping); }}
         savedData={masterLibrary} savedMapping={columnMapping}
+      />
+
+      <PromptHistoryModal
+        isOpen={isHistoryModalOpen}
+        onClose={() => setIsHistoryModalOpen(false)}
+        savedPrompts={savedPrompts}
+        onDelete={(id) => setSavedPrompts(prev => prev.filter(p => p.id !== id))}
+      />
+
+      <ApiKeyModal
+        isOpen={isApiKeyModalOpen}
+        onClose={() => setIsApiKeyModalOpen(false)}
+        savedApiKey={userApiKey}
+        onSave={setUserApiKey}
       />
     </div>
   );

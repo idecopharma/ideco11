@@ -6,9 +6,10 @@ import { GeneratedResult, AppState } from '../types';
 interface ResultDisplayProps {
   results: GeneratedResult[];
   appState: AppState;
+  onGenerateImage: (id: number, prompt: string) => void;
 }
 
-const PromptItem: React.FC<{ result: GeneratedResult }> = ({ result }) => {
+const PromptItem: React.FC<{ result: GeneratedResult, onGenerateImage: (id: number, prompt: string) => void }> = ({ result, onGenerateImage }) => {
   const [copied, setCopied] = React.useState(false);
 
   const handleCopy = () => {
@@ -77,11 +78,41 @@ const PromptItem: React.FC<{ result: GeneratedResult }> = ({ result }) => {
           {result.prompt}
         </pre>
       </div>
+      
+      <div className="bg-slate-50 px-4 py-3 border-t border-slate-100 flex flex-col gap-3">
+        <div className="flex justify-between items-center">
+          <span className="text-xs font-medium text-slate-500">Tạo ảnh trực tiếp từ Prompt này</span>
+          <button
+            onClick={() => onGenerateImage(result.id, result.prompt)}
+            disabled={result.imageStatus === 'loading'}
+            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-pink-500 to-rose-500 text-white text-sm font-bold rounded-lg shadow-md hover:shadow-lg transition-all active:scale-95 disabled:opacity-50 disabled:grayscale"
+          >
+            {result.imageStatus === 'loading' ? (
+              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <Sparkles className="w-4 h-4" />
+            )}
+            {result.imageStatus === 'loading' ? 'Đang tạo...' : 'Tạo Ảnh'}
+          </button>
+        </div>
+
+        {result.imageStatus === 'error' && (
+          <div className="text-xs text-red-600 bg-red-50 p-2 rounded border border-red-100">
+            Lỗi: {result.imageError}
+          </div>
+        )}
+
+        {result.imageUrl && (
+          <div className="mt-2 rounded-lg overflow-hidden border border-slate-200 shadow-inner bg-slate-100 flex justify-center">
+            <img src={result.imageUrl} alt={`Generated for Product ${result.id}`} className="max-w-full h-auto max-h-96 object-contain" />
+          </div>
+        )}
+      </div>
     </div>
   );
 };
 
-export const ResultDisplay: React.FC<ResultDisplayProps> = ({ results, appState }) => {
+export const ResultDisplay: React.FC<ResultDisplayProps> = ({ results, appState, onGenerateImage }) => {
   const hasResults = results.some(r => r.status === 'success' || r.status === 'error');
 
   if (appState === AppState.IDLE && !hasResults) {
@@ -113,7 +144,7 @@ export const ResultDisplay: React.FC<ResultDisplayProps> = ({ results, appState 
       </div>
 
       {results.map((result) => (
-        <PromptItem key={result.id} result={result} />
+        <PromptItem key={result.id} result={result} onGenerateImage={onGenerateImage} />
       ))}
     </div>
   );

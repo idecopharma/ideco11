@@ -11,13 +11,16 @@ export interface ProductData {
   description: string;
   imageBase64?: string;
   mimeType?: string;
-  aspectRatio: 'vertical' | 'horizontal'; // New field for layout selection
+  aspectRatio: 'vertical' | 'horizontal' | 'square'; // New field for layout selection
 }
 
 export interface GeneratedResult {
   id: number;
   prompt: string;
   status: 'pending' | 'loading' | 'success' | 'error';
+  imageUrl?: string;
+  imageStatus?: 'idle' | 'loading' | 'success' | 'error';
+  imageError?: string;
 }
 
 export enum AppState {
@@ -124,6 +127,13 @@ export interface GeneratedImage {
   id: string;
   url: string;
   prompt: string;
+}
+
+export interface SavedPrompt {
+  id: string;
+  productName: string;
+  prompt: string;
+  timestamp: number;
 }
 
 export type LoadingState = 'idle' | 'generating' | 'enhancing';
