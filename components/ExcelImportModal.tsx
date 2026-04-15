@@ -257,11 +257,23 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-[95vw] md:max-w-6xl max-h-[95vh] flex flex-col overflow-hidden">
         <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50">
-            <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+            <div className="flex items-center gap-2">
                 <div className="p-2 bg-emerald-100 text-emerald-700 rounded-lg"><Table className="w-5 h-5" /></div>
-                {step === 1 ? 'Nhập Dữ Liệu Từ Excel' : 'Soi Chiếu & Chọn Sản Phẩm'}
-            </h3>
-            <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-2 hover:bg-slate-100 rounded-full"><X className="w-5 h-5" /></button>
+                <h3 className="text-lg font-bold text-slate-800">
+                    {step === 1 ? 'Nhập Dữ Liệu Từ Excel' : 'Soi Chiếu & Chọn Sản Phẩm'}
+                </h3>
+            </div>
+            <div className="flex items-center gap-2">
+                {step === 2 && (
+                    <button 
+                        onClick={reset}
+                        className="flex items-center gap-2 px-3 py-1.5 text-xs font-bold text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all border border-slate-200"
+                    >
+                        <RefreshCw className="w-3.5 h-3.5" /> Tải file khác
+                    </button>
+                )}
+                <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-2 hover:bg-slate-100 rounded-full"><X className="w-5 h-5" /></button>
+            </div>
         </div>
         <div className="flex-1 overflow-y-auto p-4 md:p-6 custom-scrollbar">
             {step === 1 ? (
@@ -372,9 +384,18 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
         <div className="px-6 py-4 border-t border-slate-200 bg-white flex justify-between items-center shrink-0">
             <div className="flex items-center gap-3">
                 {selectedIndices.size > 0 && (
-                    <div className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wide shadow-md animate-in slide-in-from-left">
-                        <Check className="w-3.5 h-3.5" /> Đã chọn {selectedIndices.size}
-                    </div>
+                    <>
+                        <div className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wide shadow-md animate-in slide-in-from-left">
+                            <Check className="w-3.5 h-3.5" /> Đã chọn {selectedIndices.size}
+                        </div>
+                        <button 
+                            onClick={() => setSelectedIndices(new Set())}
+                            className="flex items-center gap-2 text-slate-500 hover:text-red-600 px-3 py-1.5 rounded-lg hover:bg-red-50 transition-all text-xs font-bold border border-slate-200"
+                            title="Bỏ chọn tất cả"
+                        >
+                            <RefreshCw className="w-3.5 h-3.5" /> LÀM MỚI
+                        </button>
+                    </>
                 )}
             </div>
             <div className="flex gap-3">
