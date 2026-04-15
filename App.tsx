@@ -119,8 +119,8 @@ const App: React.FC = () => {
         return r;
     }));
 
-    const promises = products.map(async (product) => {
-      if (!product.name) return;
+    for (const product of products) {
+      if (!product.name) continue;
       try {
         const prompt = await generateOptimizedPrompt(product, userApiKey);
         setResults(prev => prev.map(r => r.id === product.id ? { ...r, prompt, status: 'success' } : r));
@@ -136,12 +136,17 @@ const App: React.FC = () => {
           };
           return [newPrompt, ...prevArray];
         });
-      } catch (error) {
-        setResults(prev => prev.map(r => r.id === product.id ? { ...r, prompt: String(error), status: 'error' } : r));
-      }
-    });
 
-    await Promise.all(promises);
+        // Nghỉ 3 giây giữa các request để tránh bị Google chặn do gửi quá nhanh (Rate Limit)
+        await new Promise(resolve => setTimeout(resolve, 3000));
+      } catch (error: any) {
+        let errorMessage = String(error);
+        if (errorMessage.includes('429') || errorMessage.includes('Quota exceeded') || errorMessage.includes('RESOURCE_EXHAUSTED')) {
+            errorMessage = "Lỗi 429: Vượt quá giới hạn API miễn phí của Google. Vui lòng đợi 1 phút rồi thử lại, hoặc nhập API Key cá nhân của bạn bằng nút [API Key] ở góc trên.";
+        }
+        setResults(prev => prev.map(r => r.id === product.id ? { ...r, prompt: errorMessage, status: 'error' } : r));
+      }
+    }
     setAppState(AppState.COMPLETE);
   };
 

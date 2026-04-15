@@ -55,7 +55,7 @@ export const generateOptimizedPrompt = async (data: ProductData, customApiKey?: 
     parts.push({ text: promptInput });
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash', 
+      model: 'gemini-1.5-flash', 
       contents: { parts: parts }
     });
 
