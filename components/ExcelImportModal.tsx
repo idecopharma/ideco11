@@ -3,7 +3,6 @@ import { AlertCircle, ArrowRight, Check, FileText, RefreshCw, Save, Search, Tabl
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
 import { ExcelMapping, ProductData } from '../types';
-import { GoogleSearchModal } from './GoogleSearchModal';
 
 interface ExcelImportModalProps {
   isOpen: boolean;
@@ -42,7 +41,6 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
   });
   const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchDrugName, setSearchDrugName] = useState<string | null>(null);
   const [isAutoLoaded, setIsAutoLoaded] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -363,18 +361,7 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
                                                 </td>
                                                 {columns.map(col => (
                                                     <td key={`${originalIndex}-${col}`} className={`p-3 border-r border-slate-100 whitespace-nowrap max-w-[300px] truncate px-4 ${col === mapping.name ? 'font-bold text-slate-900' : 'text-slate-600'} ${selectedIndices.has(originalIndex) ? 'bg-emerald-50/60' : ''}`}>
-                                                        <div className="flex items-center justify-between gap-2">
-                                                            <span>{String(row[col] ?? '')}</span>
-                                                            {col === mapping.name && (
-                                                                <button 
-                                                                    onClick={(e) => { e.stopPropagation(); setSearchDrugName(String(row[col] ?? '')); }}
-                                                                    className="p-1 text-indigo-600 hover:bg-indigo-100 rounded-full transition-colors"
-                                                                    title="Tìm kiếm ảnh sản phẩm"
-                                                                >
-                                                                    <Search className="w-4 h-4" />
-                                                                </button>
-                                                            )}
-                                                        </div>
+                                                        {String(row[col] ?? '')}
                                                     </td>
                                                 ))}
                                             </tr>
@@ -425,11 +412,6 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
             </div>
         </div>
       </div>
-      <GoogleSearchModal 
-        isOpen={!!searchDrugName} 
-        onClose={() => setSearchDrugName(null)} 
-        drugName={searchDrugName || ''} 
-      />
       <style>{`
         @keyframes bounce-x {
           0%, 100% { transform: translateX(0); }
