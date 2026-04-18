@@ -31,14 +31,14 @@ export const generateOptimizedPrompt = async (data: ProductData, customApiKey?: 
     DỮ LIỆU ĐẦU VÀO (HIỂN THỊ CHÍNH XÁC TRÊN ẢNH):
     - Tên sản phẩm (Title 1): "${data.name}"
     - Giá niêm yết (Title 2): "${data.listPrice}"
-    - GIÁ IDECO (Title 3 - QUAN TRỌNG NHẤT): "${data.idecoPrice}"
+    - GIÁ IDECO (Title 3 - QUAN TRỌNG NHẤT): "GIÁ MUA VÀO TỪ IDECO CHỈ CÒN ĐẾN: ${data.idecoPrice}"
     - Nhà sản xuất (Title 4): "Nhà sản xuất bởi: ${data.manufacturer}"
     - Chi tiết: ${data.dosage} | ${data.usage}
     - Quy định: ${data.isETC ? 'THUỐC KÊ TOA (BẮT BUỘC CÓ KHUNG ĐỎ)' : 'KHÔNG'}
 
     CẤU TRÚC HÌNH ẢNH YÊU CẦU:
     1. NHẬN DIỆN THƯƠNG HIỆU: Dựa trên ảnh sản phẩm đính kèm (nếu có), hãy mô tả hộp thuốc 3D chân thực, rõ nét ở vị trí trung tâm hoặc góc đẹp. Tiêu đề "${data.name}" phải thật lớn, thiết kế font chữ 3D nổi bật, sang trọng ở phía trên.
-    2. TÂM ĐIỂM (GIÁ IDECO): Mức giá "${data.idecoPrice}" phải là điểm nhấn LỚN NHẤT, RỰC RỠ NHẤT của poster. Hãy mô tả nó được thiết kế dạng chữ 3D phát sáng (neon) hoặc mạ vàng kim loại, đặt trong một khung kính trong suốt hoặc ruy băng lụa cao cấp lơ lửng. Nó phải thu hút mắt nhìn ngay lập tức.
+    2. TÂM ĐIỂM (GIÁ IDECO): Toàn bộ cụm chữ "GIÁ MUA VÀO TỪ IDECO CHỈ CÒN ĐẾN: ${data.idecoPrice}" phải là điểm nhấn LỚN NHẤT, RỰC RỠ NHẤT của poster. Hãy mô tả nó được thiết kế dạng chữ 3D phát sáng (neon) hoặc mạ vàng kim loại, đặt trong một khung kính trong suốt hoặc ruy băng lụa cao cấp lơ lửng. Nó phải cực kỳ ấn tượng và thu hút mắt nhìn ngay lập tức.
     3. SO SÁNH GIÁ: Giá niêm yết "${data.listPrice}" đặt cạnh bên hoặc phía dưới, kích thước nhỏ hơn đáng kể, font chữ thanh mảnh, màu sắc nhã nhặn để tạo sự tương phản làm nổi bật giá IDECO.
     4. NHÃN BẮT BUỘC: ${data.isETC ? 'Góc trên bên trái poster PHẢI CÓ một khung hình chữ nhật màu đỏ đậm, bên trong là chữ trắng in hoa đậm "THUỐC KÊ TOA".' : ''}
     5. CHÂN TRANG: Dòng chữ "Nhà sản xuất bởi: ${data.manufacturer}" đặt nhỏ gọn, tinh tế ở mép dưới cùng của poster.
