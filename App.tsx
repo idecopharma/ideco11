@@ -31,7 +31,9 @@ const App: React.FC = () => {
     createEmptyProduct(1),
     createEmptyProduct(2),
     createEmptyProduct(3),
-    createEmptyProduct(4)
+    createEmptyProduct(4),
+    createEmptyProduct(5),
+    createEmptyProduct(6)
   ]);
   
   const [activeTab, setActiveTab] = useState<number>(1);
@@ -39,7 +41,9 @@ const App: React.FC = () => {
     { id: 1, prompt: '', status: 'pending' },
     { id: 2, prompt: '', status: 'pending' },
     { id: 3, prompt: '', status: 'pending' },
-    { id: 4, prompt: '', status: 'pending' }
+    { id: 4, prompt: '', status: 'pending' },
+    { id: 5, prompt: '', status: 'pending' },
+    { id: 6, prompt: '', status: 'pending' }
   ]);
   
   const [appState, setAppState] = useState<AppState>(AppState.IDLE);
@@ -176,7 +180,7 @@ const App: React.FC = () => {
     setProducts(prev => {
         const newProducts = [...prev];
         importedProducts.forEach((imp, index) => {
-            if (index < 4) {
+            if (index < 6) {
                 newProducts[index] = { ...createEmptyProduct(index + 1), ...imp, id: index + 1 };
             }
         });
@@ -218,7 +222,7 @@ const App: React.FC = () => {
             <div className="bg-indigo-600 text-white p-2.5 rounded-xl shadow-lg"><PenTool className="w-6 h-6" /></div>
             <div>
               <h1 className="text-2xl md:text-3xl font-extrabold text-slate-800">Pharma Prompt AI</h1>
-              <p className="text-slate-500 text-sm font-medium">Xử lý ảnh & tạo Prompt hàng loạt (4 SP)</p>
+              <p className="text-slate-500 text-sm font-medium">Xử lý ảnh & tạo Prompt hàng loạt (6 SP)</p>
             </div>
           </div>
 

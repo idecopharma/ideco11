@@ -142,8 +142,8 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
     const newSet = new Set(selectedIndices);
     if (newSet.has(originalIndex)) newSet.delete(originalIndex);
     else {
-        if (newSet.size >= 4) {
-            alert("Bạn chỉ có thể chọn tối đa 4 sản phẩm.");
+        if (newSet.size >= 6) {
+            alert("Bạn chỉ có thể chọn tối đa 6 sản phẩm.");
             return;
         }
         newSet.add(originalIndex);
@@ -320,7 +320,7 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
                     <div className="space-y-4">
                         <div className="flex flex-col md:flex-row justify-between items-end md:items-center gap-4">
                             <h4 className="font-black text-slate-700 flex items-center gap-2 text-sm uppercase tracking-widest">
-                                <Check className="w-5 h-5 text-emerald-500" /> BƯỚC 2: CHỌN SẢN PHẨM (Tối đa 4)
+                                <Check className="w-5 h-5 text-emerald-500" /> BƯỚC 2: CHỌN SẢN PHẨM (Tối đa 6)
                             </h4>
                             <div className="relative w-full md:w-80">
                                 <input type="text" placeholder="Tìm kiếm nhanh sản phẩm..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-10 pr-4 py-2 text-sm border-2 border-slate-200 rounded-lg focus:border-emerald-500 outline-none shadow-sm" />

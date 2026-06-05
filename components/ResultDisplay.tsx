@@ -123,7 +123,7 @@ export const ResultDisplay: React.FC<ResultDisplayProps> = ({ results, appState,
         </div>
         <p className="text-lg font-medium text-slate-600">Trình Tạo Prompt Thông Minh</p>
         <p className="text-sm max-w-xs mx-auto mt-2">
-          Nhập thông tin cho 3 sản phẩm, upload ảnh thật, và AI sẽ viết 3 prompt chuẩn xác để bạn tạo poster.
+          Nhập thông tin cho 6 sản phẩm, upload ảnh thật, và AI sẽ viết 6 prompt chuẩn xác để bạn tạo poster.
         </p>
       </div>
     );

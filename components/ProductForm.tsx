@@ -88,12 +88,12 @@ export const ProductForm: React.FC<ProductFormProps> = ({
 
   return (
     <div className="bg-white rounded-xl shadow-lg flex flex-col h-full border border-slate-200">
-      <div className="flex border-b border-slate-200 bg-slate-50 rounded-t-xl overflow-hidden">
+      <div className="flex border-b border-slate-200 bg-slate-50 rounded-t-xl overflow-x-auto scrollbar-none whitespace-nowrap">
         {products.map((p) => (
           <button
             key={p.id}
             onClick={() => onTabChange(p.id)}
-            className={`flex-1 py-3 text-sm font-semibold transition-all border-r border-slate-200 last:border-r-0
+            className={`flex-1 min-w-[95px] md:min-w-0 py-3 text-sm font-semibold transition-all border-r border-slate-200 last:border-r-0 shrink-0
               ${activeTab === p.id ? 'bg-white text-emerald-700 border-t-2 border-t-emerald-500 shadow-sm' : 'text-slate-500 hover:bg-slate-100'}`}
           >
             Sản phẩm {p.id}
