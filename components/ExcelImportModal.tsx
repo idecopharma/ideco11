@@ -17,11 +17,66 @@ type ExcelRow = Record<string, any>;
 
 const getNumericPrice = (priceVal: any): number => {
   if (priceVal === undefined || priceVal === null || String(priceVal).trim() === '') return 0;
-  if (typeof priceVal === 'number') return priceVal;
+  if (typeof priceVal === 'number') return Math.round(priceVal);
   
-  const strVal = String(priceVal).trim();
+  let strVal = String(priceVal).trim();
+  
+  // 1. Remove common text suffixes
+  strVal = strVal.replace(/(?:đồng|vnđ|vnd|đ)/gi, '').trim();
+  
+  // 2. If it contains a slash "/", take the part before the slash (e.g., "120.000 / Hộp" -> "120.000")
+  if (strVal.includes('/')) {
+      strVal = strVal.split('/')[0].trim();
+  }
+  
+  // 3. Let's analyze the format of the remaining numeric string
+  // If it's a clean number (only digits), parse it
+  if (/^[0-9]+$/.test(strVal)) {
+      return parseInt(strVal, 10);
+  }
+  
+  // If there's a comma/dot followed by exactly two zeros at the end (e.g., ",00" or ".00"), it's decimal .00. Let's strip it.
+  if (strVal.endsWith(',00') || strVal.endsWith('.00')) {
+      strVal = strVal.substring(0, strVal.length - 3);
+  }
+  
+  // Replace all dots and commas except the last separator
+  const lastDot = strVal.lastIndexOf('.');
+  const lastComma = strVal.lastIndexOf(',');
+  
+  if (lastDot !== -1 && lastComma !== -1) {
+      if (lastDot > lastComma) {
+          // Dot is the decimal separator (US format, e.g., 120,000.50)
+          const cleaned = strVal.replace(/,/g, '');
+          return Math.round(parseFloat(cleaned)) || 0;
+      } else {
+          // Comma is the decimal separator (VN format, e.g., 120.000,50)
+          const cleaned = strVal.replace(/\./g, '').replace(',', '.');
+          return Math.round(parseFloat(cleaned)) || 0;
+      }
+  }
+  
+  if (lastDot !== -1 && lastComma === -1) {
+      const parts = strVal.split('.');
+      const lastPart = parts[parts.length - 1];
+      if (lastPart.length === 3) {
+          return parseInt(strVal.replace(/\./g, ''), 10) || 0;
+      } else {
+          return Math.round(parseFloat(strVal)) || 0;
+      }
+  }
+  
+  if (lastComma !== -1 && lastDot === -1) {
+      const parts = strVal.split(',');
+      const lastPart = parts[parts.length - 1];
+      if (lastPart.length === 3) {
+          return parseInt(strVal.replace(/,/g, ''), 10) || 0;
+      } else {
+          return Math.round(parseFloat(strVal.replace(',', '.'))) || 0;
+      }
+  }
+  
   const cleanNum = strVal.replace(/[^0-9]/g, "");
-  if (!cleanNum) return 0;
   return parseInt(cleanNum, 10) || 0;
 };
 
@@ -231,7 +286,7 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
       
       let idecoPrice = '';
       if (discountStr !== '') {
-          const discountNum = parseFloat(discountStr) || 0;
+          const discountNum = parseFloat(discountStr.replace(',', '.')) || 0;
           const calculatedPriceNum = listPriceRaw * (1 - discountNum / 100);
           idecoPrice = formatPriceString(calculatedPriceNum, row[mapping.packaging]);
       } else {
@@ -393,8 +448,9 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
                                                             value={customDiscounts[originalIndex] ?? ''} 
                                                             onChange={(e) => {
                                                                 const val = e.target.value;
-                                                                if (val === '' || /^[0-9]*\.?[0-9]*$/.test(val)) {
-                                                                    const num = parseFloat(val);
+                                                                if (val === '' || /^[0-9]*[.,]?[0-9]*$/.test(val)) {
+                                                                    const cleanVal = val.replace(',', '.');
+                                                                    const num = parseFloat(cleanVal);
                                                                     if (!isNaN(num) && num > 100) return;
                                                                     setCustomDiscounts(prev => ({ ...prev, [originalIndex]: val }));
                                                                     
@@ -419,7 +475,7 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
                                                         const discountStr = customDiscounts[originalIndex] || '';
                                                         const listPriceRaw = getNumericPrice(row[mapping.listPrice]);
                                                         if (discountStr !== '') {
-                                                            const discountNum = parseFloat(discountStr) || 0;
+                                                            const discountNum = parseFloat(discountStr.replace(',', '.')) || 0;
                                                             const calculatedPriceNum = listPriceRaw * (1 - discountNum / 100);
                                                             return formatPriceString(calculatedPriceNum, row[mapping.packaging]);
                                                         } else {
