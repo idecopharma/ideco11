@@ -15,6 +15,43 @@ interface ExcelImportModalProps {
 
 type ExcelRow = Record<string, any>;
 
+const getNumericPrice = (priceVal: any): number => {
+  if (priceVal === undefined || priceVal === null || String(priceVal).trim() === '') return 0;
+  if (typeof priceVal === 'number') return priceVal;
+  
+  const strVal = String(priceVal).trim();
+  const cleanNum = strVal.replace(/[^0-9]/g, "");
+  if (!cleanNum) return 0;
+  return parseInt(cleanNum, 10) || 0;
+};
+
+const formatPriceString = (priceVal: any, packVal: any) => {
+  if (priceVal === undefined || priceVal === null || String(priceVal).trim() === '') return '';
+  
+  let p = '';
+  if (typeof priceVal === 'number') {
+      p = priceVal.toLocaleString('vi-VN');
+  } else {
+      const strVal = String(priceVal).trim();
+      const cleanNum = strVal.replace(/[^0-9]/g, "");
+      
+      if (cleanNum && !isNaN(parseInt(cleanNum))) {
+          p = parseInt(cleanNum).toLocaleString('vi-VN');
+      } else {
+          p = strVal;
+      }
+  }
+
+  if (p && !p.toLowerCase().includes('đồng') && /^[0-9.,]+$/.test(p.replace(/[^0-9.,]/g, ""))) {
+       p += ' đồng';
+  }
+
+  if (packVal && String(packVal).trim()) {
+      return `${p}/ ${String(packVal).trim()}`;
+  }
+  return p;
+};
+
 const MAPPING_FIELDS: { key: keyof ExcelMapping; label: string }[] = [
   { key: 'name', label: 'Tên Thuốc' },
   { key: 'dosage', label: 'Hàm Lượng' },
@@ -40,6 +77,7 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
     name: '', dosage: '', usage: '', listPrice: '', idecoPrice: '', manufacturer: '', packaging: ''
   });
   const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set());
+  const [customDiscounts, setCustomDiscounts] = useState<Record<number, string>>({});
   const [searchQuery, setSearchQuery] = useState('');
   const [isAutoLoaded, setIsAutoLoaded] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
@@ -174,51 +212,32 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
   };
 
   const handleApply = () => {
-    const selectedRows = data.filter((_, idx) => selectedIndices.has(idx));
+    const selectedRows = data.map((row, originalIndex) => ({ row, originalIndex }))
+                             .filter(({ originalIndex }) => selectedIndices.has(originalIndex));
+                             
     if (selectedRows.length === 0) {
       alert("Vui lòng chọn ít nhất một sản phẩm.");
       return;
     }
-    
-    const formatPriceString = (priceVal: any, packVal: any) => {
-        if (priceVal === undefined || priceVal === null || String(priceVal).trim() === '') return '';
-        
-        let p = '';
-        // Handle pure numbers
-        if (typeof priceVal === 'number') {
-            p = priceVal.toLocaleString('vi-VN');
-        } else {
-            // Handle strings that might look like "73000" or "73.000" or "73,000"
-            const strVal = String(priceVal).trim();
-            // Remove everything except digits and dots/commas to verify if it's a number
-            const cleanNum = strVal.replace(/[^0-9]/g, "");
-            
-            if (cleanNum && !isNaN(parseInt(cleanNum))) {
-                // If it looks like a number, parse it. 
-                // Note: This logic assumes input is effectively an integer amount.
-                p = parseInt(cleanNum).toLocaleString('vi-VN');
-            } else {
-                // Keep strictly non-numeric strings (like "Liên hệ") as is
-                p = strVal;
-            }
-        }
 
-        if (p && !p.toLowerCase().includes('đồng') && /^[0-9.,]+$/.test(p.replace(/[^0-9.,]/g, ""))) {
-             p += ' đồng';
-        }
-
-        if (packVal && String(packVal).trim()) {
-            return `${p}/ ${String(packVal).trim()}`;
-        }
-        return p;
-    };
-
-    const newProducts: ProductData[] = selectedRows.map((row, idx) => {
+    const newProducts: ProductData[] = selectedRows.map(({ row, originalIndex }, idx) => {
       const name = row[mapping.name] ? String(row[mapping.name]).trim() : '';
       const dosage = row[mapping.dosage] ? String(row[mapping.dosage]).trim() : '';
       const usage = row[mapping.usage] ? String(row[mapping.usage]).trim() : '';
       const listPrice = formatPriceString(row[mapping.listPrice], row[mapping.packaging]);
-      const idecoPrice = formatPriceString(row[mapping.idecoPrice], row[mapping.packaging]);
+      
+      const discountStr = customDiscounts[originalIndex] || '';
+      const listPriceRaw = getNumericPrice(row[mapping.listPrice]);
+      
+      let idecoPrice = '';
+      if (discountStr !== '') {
+          const discountNum = parseFloat(discountStr) || 0;
+          const calculatedPriceNum = listPriceRaw * (1 - discountNum / 100);
+          idecoPrice = formatPriceString(calculatedPriceNum, row[mapping.packaging]);
+      } else {
+          idecoPrice = formatPriceString(row[mapping.idecoPrice], row[mapping.packaging]);
+      }
+      
       const manufacturer = row[mapping.manufacturer] ? String(row[mapping.manufacturer]).trim() : '';
 
       return {
@@ -246,6 +265,7 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
       setColumns([]);
       setMapping({ name: '', dosage: '', usage: '', listPrice: '', idecoPrice: '', manufacturer: '', packaging: '' });
       setSelectedIndices(new Set());
+      setCustomDiscounts({});
       setSearchQuery('');
       setIsAutoLoaded(false);
       setSaveStatus('idle');
@@ -336,6 +356,8 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
                                         <tr>
                                             <th className="p-3 w-14 text-center border-r border-slate-700 sticky left-0 bg-slate-800 z-20">STT</th>
                                             <th className="p-3 w-14 text-center border-r border-slate-700 sticky left-14 bg-slate-800 z-20">CHỌN</th>
+                                            <th className="p-3 w-32 text-center border-r border-slate-700 bg-slate-800 z-10">% CHIẾT KHẤU MỚI</th>
+                                            <th className="p-3 w-44 text-center border-r border-slate-700 bg-slate-800 z-10">GIÁ IDECO TẠM TÍNH</th>
                                             {columns.map(col => (
                                                 <th key={col} className={`p-3 border-r border-slate-700 whitespace-nowrap px-4 ${Object.values(mapping).includes(col) ? 'bg-emerald-800 text-emerald-100' : ''}`}>
                                                     {col}
@@ -359,6 +381,48 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
                                                         className="w-5 h-5 rounded border-2 border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer" 
                                                     />
                                                 </td>
+                                                <td className="p-3 border-r border-slate-100 text-center" onClick={(e) => e.stopPropagation()}>
+                                                    <div className="flex items-center justify-center gap-1">
+                                                        <input 
+                                                            type="text" 
+                                                            placeholder="Nhập %" 
+                                                            value={customDiscounts[originalIndex] ?? ''} 
+                                                            onChange={(e) => {
+                                                                const val = e.target.value;
+                                                                if (val === '' || /^[0-9]*\.?[0-9]*$/.test(val)) {
+                                                                    const num = parseFloat(val);
+                                                                    if (!isNaN(num) && num > 100) return;
+                                                                    setCustomDiscounts(prev => ({ ...prev, [originalIndex]: val }));
+                                                                    
+                                                                    if (!selectedIndices.has(originalIndex)) {
+                                                                        const newSet = new Set(selectedIndices);
+                                                                        if (newSet.size >= 6) {
+                                                                            alert("Bạn chỉ có thể chọn tối đa 6 sản phẩm.");
+                                                                            return;
+                                                                        }
+                                                                        newSet.add(originalIndex);
+                                                                        setSelectedIndices(newSet);
+                                                                    }
+                                                                }
+                                                            }}
+                                                            className="w-20 px-2 py-1 text-center border-2 border-slate-200 rounded focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none font-bold text-xs" 
+                                                        />
+                                                        <span className="text-xs text-slate-500 font-bold">%</span>
+                                                    </div>
+                                                </td>
+                                                <td className="p-3 border-r border-slate-100 font-bold text-emerald-700 font-mono text-xs text-right bg-slate-50/50">
+                                                    {(() => {
+                                                        const discountStr = customDiscounts[originalIndex] || '';
+                                                        const listPriceRaw = getNumericPrice(row[mapping.listPrice]);
+                                                        if (discountStr !== '') {
+                                                            const discountNum = parseFloat(discountStr) || 0;
+                                                            const calculatedPriceNum = listPriceRaw * (1 - discountNum / 100);
+                                                            return formatPriceString(calculatedPriceNum, row[mapping.packaging]);
+                                                        } else {
+                                                            return formatPriceString(row[mapping.idecoPrice], row[mapping.packaging]) || '-';
+                                                        }
+                                                    })()}
+                                                </td>
                                                 {columns.map(col => (
                                                     <td key={`${originalIndex}-${col}`} className={`p-3 border-r border-slate-100 whitespace-nowrap max-w-[300px] truncate px-4 ${col === mapping.name ? 'font-bold text-slate-900' : 'text-slate-600'} ${selectedIndices.has(originalIndex) ? 'bg-emerald-50/60' : ''}`}>
                                                         {String(row[col] ?? '')}
@@ -366,7 +430,7 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
                                                 ))}
                                             </tr>
                                         )) : (
-                                            <tr><td colSpan={columns.length + 2} className="p-12 text-center text-slate-400 italic">Không tìm thấy dữ liệu.</td></tr>
+                                            <tr><td colSpan={columns.length + 4} className="p-12 text-center text-slate-400 italic">Không tìm thấy dữ liệu.</td></tr>
                                         )}
                                     </tbody>
                                 </table>
