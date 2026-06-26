@@ -37,3 +37,23 @@ body {
   -ms-overflow-style: none;  /* IE and Edge */
   scrollbar-width: none;  /* Firefox */
 }
+
+.table-scrollbar::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.table-scrollbar::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 6px;
+}
+
+.table-scrollbar::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+  border-radius: 6px;
+  border: 2px solid #f1f5f9;
+}
+
+.table-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}

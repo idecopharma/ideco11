@@ -274,8 +274,12 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-[95vw] md:max-w-6xl max-h-[95vh] flex flex-col overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-1.5 sm:p-4 animate-in fade-in duration-200">
+      <div className={`bg-white rounded-xl shadow-2xl w-full flex flex-col overflow-hidden transition-all duration-300 ${
+        step === 2 
+          ? 'max-w-[98vw] h-[95vh] md:h-[94vh]' 
+          : 'max-w-[95vw] md:max-w-4xl max-h-[90vh]'
+      }`}>
         <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50">
             <div className="flex items-center gap-2">
                 <div className="p-2 bg-emerald-100 text-emerald-700 rounded-lg"><Table className="w-5 h-5" /></div>
@@ -350,7 +354,7 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
 
                         {/* TABLE WITH HORIZONTAL SCROLL - Enhanced Visuals */}
                         <div className="border border-slate-300 rounded-xl shadow-lg bg-white overflow-hidden flex flex-col">
-                             <div className="overflow-x-auto w-full custom-scrollbar" style={{ maxHeight: '45vh' }}>
+                             <div className="overflow-x-auto overflow-y-auto w-full table-scrollbar" style={{ maxHeight: '58vh', height: '58vh' }}>
                                 <table className="w-full text-sm text-left border-collapse min-w-max">
                                     <thead className="bg-slate-800 text-white font-bold sticky top-0 z-10 uppercase text-[10px] tracking-wide shadow-md">
                                         <tr>
