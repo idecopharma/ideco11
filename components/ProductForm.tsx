@@ -3,6 +3,7 @@ import { AlertCircle, Box, DollarSign, Download, Eraser, Factory, HeartPulse, Li
 import React, { useMemo, useRef, useState } from 'react';
 import { Sparkles } from 'lucide-react';
 import { ExcelMapping, ProductData } from '../types';
+import { removeBackgroundWithRemoveBg } from '../services/geminiService';
 
 interface ProductFormProps {
   products: ProductData[];
@@ -35,6 +36,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [imageUrlInput, setImageUrlInput] = useState('');
   const [isUrlLoading, setIsUrlLoading] = useState(false);
+  const [isUrlRemoveBgLoading, setIsUrlRemoveBgLoading] = useState(false);
   
   const suggestions = useMemo(() => {
     if (!activeProduct.name || !masterLibrary.length || !columnMapping?.name) return [];
@@ -72,6 +74,23 @@ export const ProductForm: React.FC<ProductFormProps> = ({
       alert("Lỗi tải ảnh. Vui lòng thử lại hoặc tải ảnh về máy rồi upload thủ công.");
     } finally {
       setIsUrlLoading(false);
+    }
+  };
+
+  const handleUrlRemoveBg = async () => {
+    if (!imageUrlInput.trim()) return;
+    setIsUrlRemoveBgLoading(true);
+    try {
+      const processedDataUrl = await removeBackgroundWithRemoveBg({ imageUrl: imageUrlInput });
+      const res = await fetch(processedDataUrl);
+      const blob = await res.blob();
+      const file = new File([blob], "image_nobg.png", { type: "image/png" });
+      onImageUpload(activeTab, file);
+      setImageUrlInput('');
+    } catch (e) {
+      alert("Lỗi xóa nền bằng remover.bg: " + (e instanceof Error ? e.message : "Vui lòng kiểm tra lại liên kết ảnh."));
+    } finally {
+      setIsUrlRemoveBgLoading(false);
     }
   };
 
@@ -138,23 +157,30 @@ export const ProductForm: React.FC<ProductFormProps> = ({
                     <Upload className="w-8 h-8 mb-2 opacity-50" />
                     <p className="text-sm">Click để tải ảnh lên</p>
                   </div>
-                  <div className="flex items-center gap-2 border-t border-slate-200 pt-4">
-                     <LinkIcon className="w-4 h-4 text-slate-400" />
-                     <input 
-                        type="text" placeholder="Dán link ảnh (URL) vào đây..."
-                        className="flex-1 text-xs border border-slate-300 rounded px-3 py-2 outline-none"
-                        value={imageUrlInput} onChange={(e) => setImageUrlInput(e.target.value)}
-                     />
-                     <button onClick={handleUrlLoad} disabled={!imageUrlInput.trim() || isUrlLoading} className="text-xs bg-emerald-600 text-white px-4 py-2 rounded font-bold disabled:opacity-50">
-                        {isUrlLoading ? '...' : 'Tải'}
-                     </button>
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 border-t border-slate-200 pt-4">
+                     <div className="flex items-center gap-2 flex-1">
+                         <LinkIcon className="w-4 h-4 text-slate-400 shrink-0" />
+                         <input 
+                            type="text" placeholder="Dán link ảnh (URL) vào đây..."
+                            className="w-full text-xs border border-slate-300 rounded px-3 py-2 outline-none focus:border-emerald-500"
+                            value={imageUrlInput} onChange={(e) => setImageUrlInput(e.target.value)}
+                         />
+                     </div>
+                     <div className="flex items-center gap-2">
+                         <button onClick={handleUrlLoad} disabled={!imageUrlInput.trim() || isUrlLoading || isUrlRemoveBgLoading} className="text-xs bg-slate-600 hover:bg-slate-700 text-white px-3 py-2 rounded font-bold disabled:opacity-50 transition-colors flex items-center gap-1 shrink-0">
+                            {isUrlLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin inline" /> : null} Tải ảnh
+                         </button>
+                         <button onClick={handleUrlRemoveBg} disabled={!imageUrlInput.trim() || isUrlLoading || isUrlRemoveBgLoading} className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded font-bold disabled:opacity-50 transition-colors flex items-center gap-1.5 shadow-sm shrink-0" title="Xóa nền tự động bằng API remover.bg">
+                            {isUrlRemoveBgLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin inline" /> : <Eraser className="w-3.5 h-3.5" />} Tải & Xóa nền (remover.bg)
+                         </button>
+                     </div>
                   </div>
               </div>
             ) : (
               <div className="flex flex-col gap-4">
                 <div className="flex items-center gap-4">
                     <div className="w-24 h-24 rounded-lg overflow-hidden border border-slate-200 bg-white relative shrink-0">
-                        {isImageProcessing && (
+                        {(isImageProcessing || isUrlRemoveBgLoading) && (
                             <div className="absolute inset-0 bg-white/60 flex items-center justify-center z-10">
                                 <Loader2 className="w-6 h-6 text-emerald-600 animate-spin" />
                             </div>
@@ -162,18 +188,19 @@ export const ProductForm: React.FC<ProductFormProps> = ({
                         <img src={activeProduct.imageBase64} alt="Product" className="w-full h-full object-contain" />
                     </div>
                     <div className="flex-1 space-y-2">
-                        <p className="text-sm font-bold text-slate-700">Công cụ xử lý AI:</p>
+                        <p className="text-sm font-bold text-slate-700">Công cụ xử lý ảnh:</p>
                         <div className="flex flex-wrap gap-2">
                             <button 
                                 onClick={() => onProcessImage(activeTab, 'remove-bg')}
-                                disabled={isImageProcessing}
+                                disabled={isImageProcessing || isUrlRemoveBgLoading}
                                 className="px-3 py-1.5 bg-indigo-600 text-white rounded text-xs font-bold flex items-center gap-1.5 hover:bg-indigo-700 disabled:opacity-50"
+                                title="Sử dụng API remover.bg để xóa nền"
                             >
-                                <Eraser className="w-3.5 h-3.5" /> Xóa nền
+                                <Eraser className="w-3.5 h-3.5" /> Xóa nền (remover.bg)
                             </button>
                             <button 
                                 onClick={() => onProcessImage(activeTab, 'make-3d')}
-                                disabled={isImageProcessing}
+                                disabled={isImageProcessing || isUrlRemoveBgLoading}
                                 className="px-3 py-1.5 bg-purple-600 text-white rounded text-xs font-bold flex items-center gap-1.5 hover:bg-purple-700 disabled:opacity-50"
                             >
                                 <Box className="w-3.5 h-3.5" /> Tạo 3D
@@ -181,6 +208,24 @@ export const ProductForm: React.FC<ProductFormProps> = ({
                             <button onClick={() => fileInputRef.current?.click()} className="px-3 py-1.5 bg-slate-200 text-slate-600 rounded text-xs font-bold hover:bg-slate-300 transition-colors">Đổi ảnh</button>
                         </div>
                     </div>
+                </div>
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 border-t border-slate-200 pt-3">
+                   <div className="flex items-center gap-2 flex-1">
+                       <LinkIcon className="w-4 h-4 text-slate-400 shrink-0" />
+                       <input 
+                          type="text" placeholder="Dán link ảnh mới (URL)..."
+                          className="w-full text-xs border border-slate-300 rounded px-3 py-1.5 outline-none focus:border-emerald-500"
+                          value={imageUrlInput} onChange={(e) => setImageUrlInput(e.target.value)}
+                       />
+                   </div>
+                   <div className="flex items-center gap-2">
+                       <button onClick={handleUrlLoad} disabled={!imageUrlInput.trim() || isUrlLoading || isUrlRemoveBgLoading} className="text-xs bg-slate-600 hover:bg-slate-700 text-white px-3 py-1.5 rounded font-bold disabled:opacity-50 transition-colors flex items-center gap-1 shrink-0">
+                          {isUrlLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin inline" /> : null} Tải ảnh
+                       </button>
+                       <button onClick={handleUrlRemoveBg} disabled={!imageUrlInput.trim() || isUrlLoading || isUrlRemoveBgLoading} className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded font-bold disabled:opacity-50 transition-colors flex items-center gap-1.5 shadow-sm shrink-0" title="Xóa nền trực tiếp từ link bằng API remover.bg">
+                          {isUrlRemoveBgLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin inline" /> : <Eraser className="w-3.5 h-3.5" />} Tải & Xóa nền (remover.bg)
+                       </button>
+                   </div>
                 </div>
               </div>
             )}

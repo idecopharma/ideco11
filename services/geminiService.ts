@@ -67,8 +67,77 @@ export const generateOptimizedPrompt = async (data: ProductData, customApiKey?: 
   }
 };
 
+export const REMOVE_BG_API_KEY = "Fyd9mdnXCrjEMsxfkPujTZ8v";
+
 /**
- * Processes a product image using Gemini 2.5 Flash Image.
+ * Removes background using remover.bg API without using Google Studio API Key.
+ */
+export const removeBackgroundWithRemoveBg = async (input: { base64?: string; imageUrl?: string }, customKey?: string): Promise<string> => {
+  const apiKey = customKey || REMOVE_BG_API_KEY;
+
+  const callRemoveBg = async (bodyPayload: Record<string, any>): Promise<Blob> => {
+    const res = await fetch('https://api.remove.bg/v1.0/removebg', {
+      method: 'POST',
+      headers: {
+        'X-Api-Key': apiKey,
+        'Content-Type': 'application/json',
+        'Accept': 'image/png'
+      },
+      body: JSON.stringify(bodyPayload)
+    });
+
+    if (!res.ok) {
+      let errText = `Lỗi remover.bg (${res.status})`;
+      try {
+        const errJson = await res.json();
+        if (errJson?.errors?.[0]?.title) errText += `: ${errJson.errors[0].title}`;
+        else if (errJson?.errors?.[0]?.detail) errText += `: ${errJson.errors[0].detail}`;
+      } catch {
+        const txt = await res.text();
+        if (txt) errText += `: ${txt}`;
+      }
+      throw new Error(errText);
+    }
+    return await res.blob();
+  };
+
+  let blob: Blob;
+  if (input.imageUrl) {
+    try {
+      blob = await callRemoveBg({ image_url: input.imageUrl, size: 'auto' });
+    } catch (urlError) {
+      console.warn("remover.bg tải trực tiếp từ URL thất bại, thử fetch client-side...", urlError);
+      try {
+        const clientRes = await fetch(input.imageUrl);
+        const clientBlob = await clientRes.blob();
+        const base64Data = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
+          reader.onerror = reject;
+          reader.readAsDataURL(clientBlob);
+        });
+        blob = await callRemoveBg({ image_file_b64: base64Data, size: 'auto' });
+      } catch (fallbackError) {
+        throw urlError;
+      }
+    }
+  } else if (input.base64) {
+    const rawBase64 = input.base64.includes(',') ? input.base64.split(',')[1] : input.base64;
+    blob = await callRemoveBg({ image_file_b64: rawBase64, size: 'auto' });
+  } else {
+    throw new Error("Vui lòng cung cấp hình ảnh hoặc liên kết (URL) để xóa nền.");
+  }
+
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result as string);
+    reader.onerror = () => reject(new Error("Lỗi đọc dữ liệu ảnh sau khi xóa nền."));
+    reader.readAsDataURL(blob);
+  });
+};
+
+/**
+ * Processes a product image.
  */
 export const processProductImageAI = async (
   base64Image: string, 
@@ -76,6 +145,10 @@ export const processProductImageAI = async (
   task: 'remove-bg' | 'make-3d',
   customApiKey?: string
 ): Promise<string> => {
+  if (task === 'remove-bg') {
+    return await removeBackgroundWithRemoveBg({ base64: base64Image });
+  }
+
   const apiKey = customApiKey || process.env.API_KEY;
   if (!apiKey) throw new Error("Thiếu API Key.");
   const ai = new GoogleGenAI({ apiKey });
